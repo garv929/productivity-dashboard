@@ -5,6 +5,7 @@ import { applicationStage, companyStatus, incomeStatus } from "@/lib/db/schema";
 import { listApplications } from "@/lib/services/applications";
 import { listContacts } from "@/lib/services/contacts";
 import { listCompanies } from "@/lib/services/companies";
+import { describeCompany, suggestCompanies } from "@/lib/services/company-lookup";
 import { listInterviews, listQuestions, listStories } from "@/lib/services/prep";
 import { listIncomeOptions, sideIncomeHoursThisWeek } from "@/lib/services/income";
 import { FOCUS_ACTIVE_LIMIT, listFocusItems } from "@/lib/services/focus";
@@ -91,6 +92,8 @@ export function recordReadTools(tc: ToolCtx) {
             rows.map((c) => ({
               id: c.id,
               name: c.name,
+              domain: c.domain,
+              description: c.description,
               status: c.status,
               why: c.why,
               rolesOfInterest: c.rolesOfInterest,
@@ -98,6 +101,23 @@ export function recordReadTools(tc: ToolCtx) {
               notes: c.notes?.slice(0, 300) ?? null,
             })),
           );
+        } catch (err) {
+          return fail(err);
+        }
+      },
+    }),
+
+    lookup_company: tool({
+      description:
+        "Look a company up on the web before adding it: matching companies with their website domains, plus a short description from the first match's homepage. Use it to fill domain and description in upsert_company. Pass `domain` to describe a specific site.",
+      inputSchema: z.object({ name: z.string().trim().min(2).max(80).optional(), domain: z.string().trim().max(253).optional() }),
+      execute: async ({ name, domain }) => {
+        try {
+          const matches = name ? await suggestCompanies(name) : [];
+          const target = domain ?? matches[0]?.domain;
+          if (!target) return { matches, description: null, note: "No company found; ask the user for the website." };
+          const described = await describeCompany(target);
+          return untrusted({ matches, describedDomain: described.domain, description: described.description });
         } catch (err) {
           return fail(err);
         }

@@ -5,6 +5,7 @@ import { companies, type Company, type CompanyStatus } from "@/lib/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { getGroupByKind } from "@/lib/domain/groups";
 import { targetForGroup } from "@/lib/domain/group-mapping";
+import { normalizeDomain } from "@/lib/domain/company-lookup";
 import { createTask, listOpenTasks } from "@/lib/todoist";
 import type { ServiceCtx } from "./context";
 
@@ -32,6 +33,8 @@ export async function getCompany(userId: string, id: string): Promise<Company> {
 export type UpsertCompanyInput = {
   id?: string;
   name?: string;
+  domain?: string | null;
+  description?: string | null;
   why?: string | null;
   rolesOfInterest?: string | null;
   status?: CompanyStatus;
@@ -57,6 +60,8 @@ export async function upsertCompany(ctx: ServiceCtx, input: UpsertCompanyInput):
   const values = Object.fromEntries(
     Object.entries({
       name: input.name,
+      domain: input.domain === undefined ? undefined : normalizeDomain(input.domain),
+      description: input.description,
       why: input.why,
       rolesOfInterest: input.rolesOfInterest,
       status: input.status,

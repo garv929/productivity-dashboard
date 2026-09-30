@@ -181,6 +181,8 @@ export const companies = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    domain: text("domain"),
+    description: text("description"),
     why: text("why"),
     rolesOfInterest: text("roles_of_interest"),
     status: companyStatus("status").notNull().default("researching"),

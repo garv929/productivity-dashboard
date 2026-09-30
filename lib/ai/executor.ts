@@ -84,7 +84,7 @@ export type StepParamMap = {
     notes?: string | null;
   };
   log_touch: { contactId: string; type: TouchType; nextCheckInAt?: string | null; note?: string };
-  upsert_company: { id?: string; name?: string; why?: string | null; rolesOfInterest?: string | null; status?: CompanyStatus; notes?: string | null };
+  upsert_company: { id?: string; name?: string; domain?: string | null; description?: string | null; why?: string | null; rolesOfInterest?: string | null; status?: CompanyStatus; notes?: string | null };
   upsert_side_income_option: {
     id?: string;
     name?: string;

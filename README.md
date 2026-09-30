@@ -18,7 +18,7 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
   | `pipeline` | Applications board/table with stages |
   | `people` | Contacts, follow-up due dates, touch logging |
   | `prep` | Interviews, prep sessions, question bank, STAR stories |
-  | `research` | Companies; "Ready to apply" creates a linked task in Applications |
+  | `research` | Companies with name autocomplete that fills in the website, logo and a homepage description; "Ready to apply" creates a linked task in Applications |
   | `options` | Side-income options, hours logged vs. weekly cap |
   | `focus` | Personal-development items, max 2 active |
 - **Scorecard:** Monday–Sunday weekly metrics (in `APP_TIMEZONE`) vs. targets, per-week overrides, chart, and a weekly review form.
@@ -53,7 +53,7 @@ flowchart LR
   subgraph Vercel["Vercel (Node.js functions)"]
     Proxy[proxy.ts<br/>auth gate]
     RSC[Server components<br/>+ server actions]
-    API[Route handlers<br/>/api/overview, /api/todoist, /api/calendar, /api/health]
+    API[Route handlers<br/>/api/overview, /api/todoist, /api/calendar,<br/>/api/companies, /api/health]
     ChatAPI[/api/chat<br/>streamText + tools/]
     Actions[/api/actions/:id<br/>confirm · cancel · retry · undo/]
     Services[lib/services + lib/domain]
@@ -65,6 +65,7 @@ flowchart LR
   Todoist[(Todoist API)]
   GCal[(Google Calendar API<br/>read-only)]
   Claude[(Anthropic API)]
+  Lookup[(Clearbit autocomplete +<br/>company homepages)]
 
   UI --> Proxy --> RSC & API
   Chat --> ChatAPI
@@ -77,6 +78,7 @@ flowchart LR
   Services --> TD --> Todoist
   Services --> Cal --> GCal
   Services --> DB
+  Services -- company enrichment --> Lookup
 ```
 
 ```text
@@ -103,6 +105,7 @@ tests/              Vitest unit tests
 - Node.js 22+
 - pnpm 12 (pinned via `packageManager`). With Corepack: `corepack enable` (on newer Node versions Corepack may need `ENABLE_EXPERIMENTAL_COREPACK=1` or `npm i -g corepack` first).
 - A Postgres database (Neon recommended), a Todoist account, a Google Cloud project, an Anthropic API key.
+- Company enrichment needs no key: name autocomplete uses Clearbit's free public endpoint (`autocomplete.clearbit.com`), logos come from Google's favicon service, and descriptions are read from each company's homepage `<meta>` tags. The server needs outbound HTTPS access to those.
 
 ## Environment variables
 
@@ -134,6 +137,8 @@ pnpm db:migrate                   # apply migrations to your Neon (or local) Pos
 pnpm seed                         # find/create Todoist projects+sections, seed groups & targets
 pnpm dev                          # http://localhost:3000
 ```
+
+**Updating an existing install:** after pulling changes that add migrations (for example `0003_company_enrichment`, which adds the company `domain` and `description` columns), run `pnpm db:migrate` locally. On Vercel, the next deploy applies them automatically because `pnpm build` runs `db:migrate` first.
 
 Other scripts:
 
@@ -234,6 +239,9 @@ vercel --prod                     # deploy to production
 - **"Invalid or missing environment variables"** → the error lists which ones; compare with `.env.example`. `TOKEN_ENCRYPTION_KEY` must be base64 of exactly 32 bytes.
 - **Build fails at `db:migrate`** → `DATABASE_URL` is set but unreachable; check the Neon integration. If it's unset, migrations are skipped and the build continues.
 - **Todoist "rate limited"** → the app retries using Todoist's `Retry-After` before surfacing the error; wait a minute and refresh.
+- **No suggestions when typing a company name** → Clearbit's autocomplete is unreachable or returned nothing; the form still works, just type the name and website yourself.
+- **"Look up" finds no description** → some sites block non-browser requests or serve a non-HTML page to bots (e.g. ramp.com). Only HTML `<meta>`/`<title>` tags are read, so type the About text yourself.
+- **Wrong company suggested first** → autocomplete ranks by popularity (e.g. "Anthropic" lists `anthropics.com` first). Pick the right domain from the list; the assistant is told to ask when several matches are plausible.
 - **Assistant says an action "expired"** → pending actions expire after 10 minutes; click *Re-propose* on the card.
 
 ## Tests
@@ -246,6 +254,7 @@ Unit tests (Vitest, no network or credentials) cover:
 - next-step ranking, skip-for-today, subtask exclusion and tree ordering (`tests/next-step.test.ts`)
 - calendar title → group matching and rule precedence (`tests/calendar-match.test.ts`)
 - Monday–Sunday week boundaries in `America/Los_Angeles`, including the March 8 and November 1, 2026 DST transitions (`tests/time.test.ts`)
+- company enrichment parsing: domain normalisation, autocomplete de-duplication, and homepage description extraction (`tests/company-lookup.test.ts`)
 - the confirmation state machine: single execution under concurrent confirms, expiry, cancellation, stale re-validation, stop-on-failure, retry-remaining, undo-once, and typed-confirmation parsing (`tests/pending-actions.test.ts`)
 
 ## Acceptance checklist (demo scenarios)
@@ -257,6 +266,7 @@ Walk through these on the production URL after deploying and seeding:
 - [ ] 3. A task added in the Todoist phone app appears on the right group page within about 60 seconds, or immediately on tab refocus.
 - [ ] 4. Completing a task in the dashboard completes it in Todoist, and vice versa.
 - [ ] 5. Setting a company to "Ready to apply" creates a linked task in Applications.
+- [ ] 5a. Typing a company name in *Add target company* shows suggestions; picking one fills the website and About, and the card shows its logo. Asking the assistant to "add Figma as a target" proposes it with the website and description filled in.
 - [ ] 6. The assistant answers "What should I work on right now?" using the calendar and the right group.
 - [ ] 7. "I just applied to Ramp" produces a single confirmation card with two actions; nothing changes until Confirm; after Confirm, both changes are visible.
 - [ ] 8. Confirming a stale proposal (the task was completed on the phone in the meantime) is rejected with a clear message and a new proposal.

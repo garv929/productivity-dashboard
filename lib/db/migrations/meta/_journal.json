@@ -22,6 +22,13 @@
       "when": 1790795666843,
       "tag": "0002_pending_executing",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790804411525,
+      "tag": "0003_company_enrichment",
+      "breakpoints": true
     }
   ]
 }

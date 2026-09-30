@@ -129,6 +129,8 @@ export function recordWriteTools(tc: ToolCtx) {
       inputSchema: z.object({
         id: z.uuid().optional(),
         name: z.string().trim().min(1).max(120).optional(),
+        domain: z.string().trim().max(253).optional().describe("Website domain, e.g. ramp.com (from lookup_company)"),
+        description: z.string().max(1000).optional().describe("What the company does (from lookup_company)"),
         why: z.string().max(2000).optional(),
         rolesOfInterest: z.string().max(500).optional(),
         status: z.enum(companyStatus.enumValues).optional(),
@@ -139,7 +141,7 @@ export function recordWriteTools(tc: ToolCtx) {
           const prev = input.id ? await getCompany(tc.userId, input.id) : null;
           if (!prev && !input.name) return { error: "A new company needs a name." };
           const name = input.name ?? prev!.name;
-          let summary = prev ? `Update ${b(name)}` : `Add target company ${b(name)}`;
+          let summary = prev ? `Update ${b(name)}` : `Add target company ${b(name)}${input.domain ? ` (${input.domain})` : ""}`;
           if (input.status && input.status !== prev?.status) {
             summary = prev ? `Mark ${b(name)} as ${b(COMPANY_LABEL[input.status])}` : `${summary} as ${b(COMPANY_LABEL[input.status])}`;
             const title = readyTaskTitle({ name, rolesOfInterest: input.rolesOfInterest ?? prev?.rolesOfInterest ?? null }, input.status);

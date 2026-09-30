@@ -95,6 +95,8 @@ export async function logTouchAction(input: { contactId: string; type: "outreach
 const companySchema = z.object({
   id: uuid.optional(),
   name: z.string().trim().min(1).max(120).optional(),
+  domain: z.string().trim().max(253).nullish(),
+  description: optText.optional(),
   why: optText.optional(),
   rolesOfInterest: optText.optional(),
   status: z.enum(companyStatus.enumValues).optional(),
