@@ -1,0 +1,1 @@
+ALTER TYPE "public"."pending_action_status" ADD VALUE 'executing' BEFORE 'executed';
