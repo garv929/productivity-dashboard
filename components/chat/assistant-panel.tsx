@@ -8,7 +8,6 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowUp, Check, History, Loader2, MessageSquarePlus, Square, Trash2, TriangleAlert, X } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAssistant } from "./assistant-context";
 import { ConfirmationCard } from "./confirmation-card";
@@ -44,6 +43,8 @@ export function AssistantPanel({ groups }: { groups: NavGroup[] }) {
     setSessionId(id);
   }, [open, sessionId]);
 
+  if (!open) return null;
+
   const switchTo = (id: string) => {
     window.localStorage.setItem(SESSION_KEY, id);
     setSessionId(id);
@@ -51,10 +52,14 @@ export function AssistantPanel({ groups }: { groups: NavGroup[] }) {
   };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" showCloseButton={false} className="w-full! gap-0! bg-background p-0 sm:max-w-[36rem]!">
-        <SheetTitle className="sr-only">Assistant</SheetTitle>
-        <SheetDescription className="sr-only">Ask about your tasks, calendar and job-search records.</SheetDescription>
+    // Docked column beside the page on desktop (the page stays usable); full screen on phones.
+    <aside
+      aria-label="Assistant"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !e.defaultPrevented) setOpen(false);
+      }}
+      className="fixed inset-0 z-40 flex flex-col bg-background lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:w-[26rem] lg:shrink-0 lg:border-l xl:w-[30rem]"
+    >
         <header className="flex h-14 shrink-0 items-center gap-1 border-b px-3">
           <Button variant="ghost" size="icon-sm" onClick={() => setShowHistory((s) => !s)} aria-label="Chat history" aria-pressed={showHistory}>
             <History />
@@ -73,8 +78,7 @@ export function AssistantPanel({ groups }: { groups: NavGroup[] }) {
           {showHistory && <HistorySidebar current={sessionId} onPick={switchTo} onNew={() => switchTo(newId())} />}
           {sessionId && <ThreadLoader key={sessionId} sessionId={sessionId} groups={groups} />}
         </div>
-      </SheetContent>
-    </Sheet>
+    </aside>
   );
 }
 

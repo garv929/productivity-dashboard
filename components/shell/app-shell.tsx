@@ -49,11 +49,11 @@ export function AppShell({ email, groups, children }: { email: string; groups: N
           </aside>
           <div className="flex min-w-0 flex-1 flex-col">
             <MobileBar email={email} groups={groups} />
-            <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 sm:px-6 lg:pt-8">{children}</main>
+            <main className="@container mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 sm:px-6 lg:pt-8">{children}</main>
           </div>
+          <AssistantPanel groups={groups} />
         </div>
         <AssistantLauncher />
-        <AssistantPanel groups={groups} />
         <KeyboardShortcuts groups={groups} />
       </AssistantProvider>
     </SWRConfig>

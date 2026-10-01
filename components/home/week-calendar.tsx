@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -54,24 +54,30 @@ export function WeekCalendar() {
   const selectedDay = data ? (selected ?? (data.days.some((d) => d.date === data.today) ? data.today : data.weekStart)) : null;
   const isCurrentWeek = data ? data.today >= data.weekStart && data.today <= data.weekEnd : true;
 
-  const wideScroll = useRef<HTMLDivElement>(null);
-  const narrowScroll = useRef<HTMLDivElement>(null);
-  const loaded = Boolean(data);
-  // Open the grid near "now" this week, or at the first event (default 8am) on other weeks.
-  // Only when the week or day changes — not on every background refresh.
-  useEffect(() => {
-    if (!data) return;
-    const visible = selectedDay && !wideScroll.current?.offsetParent ? data.days.filter((d) => d.date === selectedDay) : data.days;
-    const firstTimed = Math.min(
-      ...visible.flatMap((d) => d.items.map((i) => i.startMin ?? Infinity)),
-      8 * 60,
-    );
-    const target = isCurrentWeek ? data.nowMin - 90 : firstTimed - 30;
-    for (const el of [wideScroll.current, narrowScroll.current]) {
-      if (el) el.scrollTop = Math.max(0, (target / 60) * HOUR_PX);
-    }
+  // Open each grid near "now" this week, or at the first event (default 8am) on other weeks.
+  // Applied when a grid first becomes visible (the wide and one-day grids swap as space changes),
+  // and again when the week or day changes — not on background refreshes.
+  const loaded = data !== undefined;
+  const startScroll = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (!el || !data) return;
+      const days = el.dataset.day ? data.days.filter((d) => d.date === el.dataset.day) : data.days;
+      const firstTimed = Math.min(...days.flatMap((d) => d.items.map((i) => i.startMin ?? Infinity)), 8 * 60);
+      const target = isCurrentWeek ? data.nowMin - 90 : firstTimed - 30;
+      let done = false;
+      const apply = () => {
+        if (done || el.clientHeight === 0) return;
+        el.scrollTop = Math.max(0, (target / 60) * HOUR_PX);
+        done = true;
+      };
+      apply();
+      const ro = new ResizeObserver(apply);
+      ro.observe(el);
+      return () => ro.disconnect();
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, data?.weekStart, selectedDay]);
+    [loaded, data?.weekStart, selectedDay],
+  );
 
   return (
     <section aria-labelledby="calendar-heading" className="overflow-hidden rounded-xl border bg-card">
@@ -113,8 +119,8 @@ export function WeekCalendar() {
         )
       ) : (
         <div className={cn(isLoading && "opacity-60 transition-opacity")}>
-          {/* Wide: week time grid. */}
-          <div className="hidden xl:block">
+          {/* Wide (by available width, so it adapts when the assistant is open): week time grid. */}
+          <div className="hidden @4xl:block">
             <div className={cn(COLS_7, "border-b")}>
               <div />
               {data.days.map((d) => (
@@ -122,13 +128,13 @@ export function WeekCalendar() {
               ))}
             </div>
             <AllDayRow days={data.days} today={data.today} onComplete={complete} cols={COLS_7} />
-            <div ref={wideScroll} className={SCROLL}>
+            <div ref={startScroll} className={SCROLL}>
               <TimeGrid days={data.days} agenda={data} onComplete={complete} cols={COLS_7} />
             </div>
           </div>
 
           {/* Narrow: day picker + one day's time grid. */}
-          <div className="xl:hidden">
+          <div className="@4xl:hidden">
             <div className="grid grid-cols-7 gap-1 border-b px-2 py-2">
               {data.days.map((d) => {
                 const active = d.date === selectedDay;
@@ -157,7 +163,7 @@ export function WeekCalendar() {
               .map((d) => (
                 <div key={d.date}>
                   <AllDayRow days={[d]} today={data.today} onComplete={complete} cols={COLS_1} />
-                  <div ref={narrowScroll} className={SCROLL}>
+                  <div ref={startScroll} data-day={d.date} className={SCROLL}>
                     <TimeGrid days={[d]} agenda={data} onComplete={complete} cols={COLS_1} />
                   </div>
                 </div>
