@@ -11,7 +11,7 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
 
 ## Features
 
-- **Home:** "Now" banner from the current calendar block, one card per group with its next step, overdue/due-today counts, and weekly-target warnings.
+- **Home:** a week calendar with an hour axis (Mon–Sun, previous/next week; a single-day view with a day picker on narrower screens). Google Calendar events and timed Todoist tasks are placed at their real times (overlaps side by side, with a red now line), while all-day events and tasks without a time sit in an "All day" row. Tasks come only from dashboard groups, never the Inbox or other personal projects; overdue tasks show under today and can be completed in place. Below it, a "Now" banner from the current calendar block, one card per group with its next step, overdue/due-today counts, and weekly-target warnings.
 - **Group pages:** the task tree for that group (complete, reschedule, skip for today, mark as next, quick add) plus a context panel depending on the group's kind:
   | Kind | Panel |
   |---|---|
@@ -234,6 +234,7 @@ vercel --prod                     # deploy to production
 - **`redirect_uri_mismatch` on sign-in** → the callback URL in Google Cloud doesn't exactly match the deployment URL (scheme, host and path `/api/auth/callback/google`).
 - **"Access denied: this dashboard is private"** → the signed-in email doesn't match `ALLOWED_EMAIL`.
 - **Calendar shows "Re-connect"** → refresh token expired (Testing-mode 7-day limit) or was revoked; sign out and in again, or use *Settings → Connections → Re-connect*.
+- **Calendar is connected but shows no events** → the app reads one calendar, `GOOGLE_CALENDAR_ID` (default `primary`, the signed-in account's own calendar). If your events live on another calendar shared with that account (for example a different Gmail address), set `GOOGLE_CALENDAR_ID` to that calendar's ID — for a person's main calendar it's their email address; for others, Google Calendar → *Settings → [calendar] → Integrate calendar → Calendar ID*. Restart `pnpm dev` (or redeploy) after changing it.
 - **Tasks not appearing** → check group mappings in `/settings`; re-run `pnpm seed`; check `/api/health`. Tasks in unmapped projects (including the Inbox) are intentionally hidden from group pages.
 - **Chat cuts off mid-answer** → raise `maxDuration` in `app/api/chat/route.ts` or reduce tool steps (`isStepCount(8)`).
 - **"Invalid or missing environment variables"** → the error lists which ones; compare with `.env.example`. `TOKEN_ENCRYPTION_KEY` must be base64 of exactly 32 bytes.

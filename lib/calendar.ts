@@ -72,7 +72,7 @@ function isAuthFailure(err: unknown): boolean {
   );
 }
 
-async function fetchEvents(userId: string, timeMin: string, timeMax: string): Promise<CalendarResult> {
+async function fetchEvents(userId: string, timeMin: string, timeMax: string, calendarId = env.GOOGLE_CALENDAR_ID): Promise<CalendarResult> {
   try {
     const auth = await oauthClientFor(userId);
     const calendar = google.calendar({ version: "v3", auth });
@@ -80,7 +80,7 @@ async function fetchEvents(userId: string, timeMin: string, timeMax: string): Pr
     let pageToken: string | undefined;
     do {
       const res = await calendar.events.list({
-        calendarId: env.GOOGLE_CALENDAR_ID,
+        calendarId,
         timeMin,
         timeMax,
         singleEvents: true,
@@ -122,7 +122,8 @@ const cachedEvents = unstable_cache(fetchEvents, ["calendar:events"], {
 /** Events in [from, to). Cached 5 minutes under the `calendar` tag. Never throws. */
 export async function getCalendarEvents(userId: string, from: Date, to: Date): Promise<CalendarResult> {
   const round = (d: Date) => new Date(Math.floor(d.getTime() / 60_000) * 60_000).toISOString();
-  return cachedEvents(userId, round(from), round(to));
+  // calendarId is part of the cache key so changing GOOGLE_CALENDAR_ID takes effect immediately.
+  return cachedEvents(userId, round(from), round(to), env.GOOGLE_CALENDAR_ID);
 }
 
 export function tagEvents(events: CalendarEvent[], groups: Group[]): TaggedEvent[] {

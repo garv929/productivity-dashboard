@@ -6,8 +6,9 @@ import { AlertTriangle, ArrowRight, CalendarClock, CalendarX2, CircleDot, Clock 
 import type { Overview, GroupCard } from "@/lib/services/dashboard";
 import { GroupIcon } from "@/components/group-icon";
 import { EmptyState } from "@/components/states";
-import { formatDue, formatTime, greeting } from "@/lib/client/format";
+import { formatDue, greeting } from "@/lib/client/format";
 import { useAssistant } from "@/components/chat/assistant-context";
+import { WeekCalendar } from "./week-calendar";
 import { cn } from "@/lib/utils";
 
 export function HomeView({ initial }: { initial: Overview }) {
@@ -23,8 +24,8 @@ export function HomeView({ initial }: { initial: Overview }) {
         <h1 className="mt-1 text-3xl sm:text-4xl">{greeting(new Date(o.generatedAt))}.</h1>
       </div>
 
+      <WeekCalendar />
       <NowBanner overview={o} />
-      <TodayStrip overview={o} />
 
       {o.warnings.length > 0 && (
         <section aria-labelledby="warnings" className="rounded-xl border border-warning/25 bg-warning/5 p-4">
@@ -112,41 +113,6 @@ function NowBanner({ overview: o }: { overview: Overview }) {
         </button>
       )}
     </div>
-  );
-}
-
-function TodayStrip({ overview: o }: { overview: Overview }) {
-  if (o.calendarStatus !== "ok") return null;
-  if (o.todayEvents.length === 0) return null;
-  const nowMs = new Date(o.generatedAt).getTime();
-  return (
-    <section aria-label="Today's calendar">
-      <h2 className="mb-2 font-sans text-xs font-medium tracking-wide text-muted-foreground uppercase">Today</h2>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-        {o.todayEvents.map((e) => {
-          const past = new Date(e.end).getTime() < nowMs;
-          const current = !past && new Date(e.start).getTime() <= nowMs;
-          const chip = (
-            <div
-              className={cn(
-                "flex min-w-40 shrink-0 flex-col rounded-lg border-l-[3px] bg-card px-3 py-2 ring-1 ring-border",
-                past && "opacity-50",
-                current && "ring-2 ring-primary/40",
-              )}
-              style={{ borderLeftColor: e.color ?? "var(--muted-foreground)" }}
-            >
-              <span className="text-xs text-muted-foreground">
-                {e.allDay ? "All day" : `${formatTime(e.start, o.tz)}–${formatTime(e.end, o.tz)}`}
-              </span>
-              <span className="truncate text-sm">{e.title}</span>
-            </div>
-          );
-          if (e.isWeeklyReview) return <Link key={e.id} href="/scorecard">{chip}</Link>;
-          if (e.groupSlug) return <Link key={e.id} href={`/g/${e.groupSlug}`}>{chip}</Link>;
-          return <div key={e.id}>{chip}</div>;
-        })}
-      </div>
-    </section>
   );
 }
 
