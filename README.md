@@ -188,7 +188,7 @@ Default groups and calendar rules (editable in **Settings**):
 | Networking & Follow-ups | people | Job Search / Networking & Follow-ups | equals `Recruiting: Networking & outreach` or `Follow-ups & inbox` |
 | Interview Prep | prep | Job Search / Interview Prep | equals `Recruiting: Interview prep` |
 | Company Research | research | Job Search / Company Research | equals `Recruiting: Company research` |
-| Side Income | options | Side Income | equals `What's something you want to do to make some cash?` |
+| Side Income | options | Side Income | equals `Side income` |
 | Personal Development | focus | Personal Development | equals `Personal development` |
 
 Matching ignores case, extra whitespace and curly quotes. `equals` beats `starts with` beats `contains`; ties go to the group higher in the list.

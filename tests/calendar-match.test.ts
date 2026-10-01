@@ -16,7 +16,7 @@ const groups = [
     { type: "equals", value: "Recruiting: Networking & outreach" },
     { type: "equals", value: "Follow-ups & inbox" },
   ]),
-  g("side-income", 5, [{ type: "equals", value: "What's something you want to do to make some cash?" }]),
+  g("side-income", 5, [{ type: "equals", value: "Side income" }]),
   g("catch-all", 9, [{ type: "contains", value: "recruiting" }]),
 ];
 
@@ -31,7 +31,8 @@ describe("calendar → group matcher", () => {
   });
 
   it("normalises curly quotes and dashes", () => {
-    expect(matchEventToGroup("What’s something you want to do to make some cash?", groups)?.slug).toBe("side-income");
+    expect(matchEventToGroup("  SIDE   Income ", groups)?.slug).toBe("side-income");
+    expect(normalizeTitle("Today’s “focus” block")).toBe(`today's "focus" block`);
     expect(normalizeTitle("Phase 1 – Positioning")).toBe("phase 1 - positioning");
   });
 
