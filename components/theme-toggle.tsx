@@ -50,7 +50,7 @@ export function ThemeToggle() {
 }
 
 /** Segmented Light / Dark / System control (Settings, mobile menu). */
-export function ThemeSegmented({ className }: { className?: string }) {
+export function ThemeSegmented({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
   return (
@@ -63,13 +63,16 @@ export function ThemeSegmented({ className }: { className?: string }) {
             role="radio"
             aria-checked={active}
             onClick={() => setTheme(o.value)}
+            aria-label={compact ? o.label : undefined}
+            title={compact ? o.label : undefined}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+              compact && "flex-1 justify-center px-2 py-1",
               active ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground",
             )}
           >
             <o.icon className="size-4" />
-            {o.label}
+            {!compact && o.label}
           </button>
         );
       })}
