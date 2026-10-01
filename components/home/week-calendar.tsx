@@ -11,6 +11,7 @@ import { addDays } from "@/lib/domain/time";
 import { completeTaskAction } from "@/app/actions/tasks";
 import { unwrap } from "@/lib/client/fetcher";
 import { formatTime } from "@/lib/client/format";
+import { EventPopover } from "@/components/calendar/event-details";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -127,7 +128,7 @@ export function WeekCalendar() {
                 <DayHeader key={d.date} date={d.date} today={data.today} />
               ))}
             </div>
-            <AllDayRow days={data.days} today={data.today} onComplete={complete} cols={COLS_7} />
+            <AllDayRow days={data.days} today={data.today} tz={data.tz} onComplete={complete} cols={COLS_7} />
             <div ref={startScroll} className={SCROLL}>
               <TimeGrid days={data.days} agenda={data} onComplete={complete} cols={COLS_7} />
             </div>
@@ -162,7 +163,7 @@ export function WeekCalendar() {
               .filter((d) => d.date === selectedDay)
               .map((d) => (
                 <div key={d.date}>
-                  <AllDayRow days={[d]} today={data.today} onComplete={complete} cols={COLS_1} />
+                  <AllDayRow days={[d]} today={data.today} tz={data.tz} onComplete={complete} cols={COLS_1} />
                   <div ref={startScroll} data-day={d.date} className={SCROLL}>
                     <TimeGrid days={[d]} agenda={data} onComplete={complete} cols={COLS_1} />
                   </div>
@@ -204,7 +205,7 @@ function DayHeader({ date, today }: { date: string; today: string }) {
 }
 
 /** All-day events plus tasks with no time (overdue ones included). */
-function AllDayRow({ days, today, onComplete, cols }: { days: AgendaDay[]; today: string; onComplete: (t: AgendaTask) => void; cols: string }) {
+function AllDayRow({ days, today, tz, onComplete, cols }: { days: AgendaDay[]; today: string; tz: string; onComplete: (t: AgendaTask) => void; cols: string }) {
   const untimed = days.map((d) => d.items.filter((i) => i.startMin === null));
   if (untimed.every((items) => items.length === 0)) return null;
   return (
@@ -215,14 +216,14 @@ function AllDayRow({ days, today, onComplete, cols }: { days: AgendaDay[]; today
           {untimed[i].map((item) =>
             item.kind === "event" ? (
               <li key={item.key}>
-                <EventLink event={item}>
-                  <div
-                    className="truncate rounded-md px-1.5 py-0.5 text-xs"
+                <EventPopover event={item} tz={tz}>
+                  <button
+                    className="block w-full truncate rounded-md px-1.5 py-0.5 text-left text-xs hover:brightness-110"
                     style={{ backgroundColor: tint(item.color), borderLeft: `3px solid ${item.color ?? "var(--muted-foreground)"}` }}
                   >
                     {item.title}
-                  </div>
-                </EventLink>
+                  </button>
+                </EventPopover>
               </li>
             ) : (
               <li key={item.key} className="group/task flex items-start gap-1.5 rounded-md px-1 py-0.5 hover:bg-accent/60">
@@ -300,23 +301,20 @@ function tint(color: string | null) {
   return color ? `color-mix(in oklab, ${color} 18%, transparent)` : "var(--surface)";
 }
 
-function EventLink({ event: e, children }: { event: AgendaEvent; children: React.ReactNode }) {
-  return e.groupSlug ? <Link href={`/g/${e.groupSlug}`}>{children}</Link> : <>{children}</>;
-}
-
 function EventBlock({ event: e, style, tall, tz, past }: { event: AgendaEvent; style: React.CSSProperties; tall: boolean; tz: string; past: boolean }) {
   const when = `${formatTime(e.start, tz)} – ${formatTime(e.end, tz)}`;
   return (
     <div className={cn("absolute overflow-hidden", past && "opacity-55")} style={style} title={`${e.title}\n${when}`}>
-      <EventLink event={e}>
-        <div
-          className={cn("h-full rounded-md px-1.5 text-xs leading-tight", tall ? "py-1" : "flex items-center gap-1", e.groupSlug && "hover:brightness-110")}
+      <EventPopover event={e} tz={tz}>
+        <button
+          className={cn("block h-full w-full rounded-md px-1.5 text-left text-xs leading-tight hover:brightness-110", tall ? "py-1" : "flex items-center gap-1")}
           style={{ backgroundColor: tint(e.color), borderLeft: `3px solid ${e.color ?? "var(--muted-foreground)"}` }}
         >
           <p className={cn("font-medium", tall ? "line-clamp-2" : "truncate")}>{e.title}</p>
           <p className={cn("text-[10px] text-muted-foreground", !tall && "shrink-0")}>{tall ? when : formatTime(e.start, tz)}</p>
-        </div>
-      </EventLink>
+          {tall && e.description && <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground/80">{e.description}</p>}
+        </button>
+      </EventPopover>
     </div>
   );
 }

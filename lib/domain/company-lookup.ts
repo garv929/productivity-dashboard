@@ -1,5 +1,7 @@
 /** Pure helpers for company enrichment (autocomplete + website description). */
 
+import { decodeEntities } from "./text";
+
 export type CompanySuggestion = { name: string; domain: string };
 
 const HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -35,18 +37,6 @@ export function parseSuggestions(json: unknown, limit = 6): CompanySuggestion[] 
     if (out.length >= limit) break;
   }
   return out;
-}
-
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'", mdash: "—", ndash: "–", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“" };
-
-function decodeEntities(s: string): string {
-  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z0-9]+);/gi, (m, code: string) => {
-    const lower = code.toLowerCase();
-    if (lower in ENTITIES) return ENTITIES[lower];
-    if (lower.startsWith("#x")) return String.fromCodePoint(parseInt(lower.slice(2), 16));
-    if (lower.startsWith("#")) return String.fromCodePoint(parseInt(lower.slice(1), 10));
-    return m;
-  });
 }
 
 function metaContent(html: string, key: string): string | null {

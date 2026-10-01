@@ -37,6 +37,7 @@ import { formatDate, formatDue } from "@/lib/client/format";
 import { COMPLETE_NEXT_EVENT, QUICK_ADD_EVENT } from "@/components/shell/keyboard-shortcuts";
 import { GroupDot, GroupIcon } from "@/components/group-icon";
 import { EmptyState } from "@/components/states";
+import { WeekBlocks } from "./week-blocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -203,6 +204,8 @@ export function GroupView({ initial, children }: { initial: GroupPageData; child
       )}
 
       <NextStepCard data={d} ops={ops} readOnly={readOnly} />
+
+      <WeekBlocks slug={d.group.slug} color={d.group.color} />
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <section aria-labelledby="todos">

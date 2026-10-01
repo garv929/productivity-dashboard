@@ -11,8 +11,8 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
 
 ## Features
 
-- **Home:** a week calendar with an hour axis (Mon–Sun, previous/next week; a single-day view with a day picker on narrower screens). Google Calendar events and timed Todoist tasks are placed at their real times (overlaps side by side, with a red now line), while all-day events and tasks without a time sit in an "All day" row. Tasks come only from dashboard groups, never the Inbox or other personal projects; overdue tasks show under today and can be completed in place. Below it, a "Now" banner from the current calendar block, one card per group with its next step, overdue/due-today counts, and weekly-target warnings.
-- **Group pages:** the task tree for that group (complete, reschedule, skip for today, mark as next, quick add) plus a context panel depending on the group's kind:
+- **Home:** a week calendar with an hour axis (Mon–Sun, previous/next week; a single-day view with a day picker on narrower screens). Google Calendar events and timed Todoist tasks are placed at their real times (overlaps side by side, with a red now line), while all-day events and tasks without a time sit in an "All day" row. Click an event to see its Google Calendar description and a link to its group. Tasks come only from dashboard groups, never the Inbox or other personal projects; overdue tasks show under today and can be completed in place. Below it, a "Now" banner from the current calendar block, one card per group with its next step, overdue/due-today counts, and weekly-target warnings.
+- **Group pages:** this week's calendar blocks linked to the group (by its calendar-title rule) with their descriptions, planned vs. elapsed hours and a "Now" marker; the task tree for that group (complete, reschedule, skip for today, mark as next, quick add) plus a context panel depending on the group's kind:
   | Kind | Panel |
   |---|---|
   | `pipeline` | Applications board/table with stages |
@@ -254,6 +254,7 @@ pnpm test
 Unit tests (Vitest, no network or credentials) cover:
 - next-step ranking, skip-for-today, subtask exclusion and tree ordering (`tests/next-step.test.ts`)
 - calendar title → group matching and rule precedence (`tests/calendar-match.test.ts`)
+- week calendar layout: day placement, time spans across midnight, overlap lanes (`tests/agenda.test.ts`), and Google Calendar description HTML → text (`tests/text.test.ts`)
 - Monday–Sunday week boundaries in `America/Los_Angeles`, including the March 8 and November 1, 2026 DST transitions (`tests/time.test.ts`)
 - company enrichment parsing: domain normalisation, autocomplete de-duplication, and homepage description extraction (`tests/company-lookup.test.ts`)
 - the confirmation state machine: single execution under concurrent confirms, expiry, cancellation, stale re-validation, stop-on-failure, retry-remaining, undo-once, and typed-confirmation parsing (`tests/pending-actions.test.ts`)

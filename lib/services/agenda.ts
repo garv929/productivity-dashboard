@@ -50,8 +50,10 @@ export async function getWeekAgenda(userId: string, weekOf?: LocalDate, now = ne
       start: e.start,
       end: e.end,
       allDay: e.allDay,
+      description: e.description ?? null,
       color: e.color,
       groupSlug: e.groupSlug,
+      groupName: e.groupName,
     })),
     tasks,
   });

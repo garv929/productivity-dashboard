@@ -9,6 +9,7 @@ import { env } from "@/lib/env";
 import { matchEventToGroup } from "@/lib/domain/calendar-match";
 import { startOfLocalDay } from "@/lib/domain/time";
 import { GoogleAuthError } from "@/lib/errors";
+import { htmlToText } from "@/lib/domain/text";
 
 export const CALENDAR_TAG = "calendar";
 
@@ -18,6 +19,8 @@ export type CalendarEvent = {
   start: string;
   end: string;
   allDay: boolean;
+  /** Plain-text description from Google Calendar (HTML converted), if any. */
+  description: string | null;
 };
 
 export type TaggedEvent = CalendarEvent & {
@@ -100,7 +103,7 @@ async function fetchEvents(userId: string, timeMin: string, timeMax: string, cal
         const start = toIso(ev.start);
         const end = toIso(ev.end);
         if (!start || !end) continue;
-        events.push({ id: ev.id, title: ev.summary ?? "(untitled)", start, end, allDay });
+        events.push({ id: ev.id, title: ev.summary ?? "(untitled)", start, end, allDay, description: htmlToText(ev.description) });
       }
       pageToken = res.data.nextPageToken ?? undefined;
     } while (pageToken);
