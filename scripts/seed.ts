@@ -84,7 +84,7 @@ const DEFAULT_GROUPS: SeedGroup[] = [
     color: "#F6BF26",
     icon: "dollar-sign",
     location: { project: "Side Income" },
-    calendarMatch: [{ type: "equals", value: "What's something you want to do to make some cash?" }],
+    calendarMatch: [{ type: "equals", value: "Side income" }],
   },
   {
     slug: "personal-dev",
