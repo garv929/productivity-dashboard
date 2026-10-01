@@ -106,7 +106,7 @@ function TopNav({ email, groups }: { email: string; groups: NavGroup[] }) {
           </SheetTrigger>
           <SheetContent side="left" className="w-72 bg-background p-0">
             <SheetHeader className="border-b px-4 py-3">
-              <SheetTitle className="font-serif text-lg">Next Steps</SheetTitle>
+              <SheetTitle className="font-serif text-lg">Your Personal Productive Workspace</SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-0.5 p-3">{links(() => setOpen(false))}</nav>
             <div className="mt-auto border-t p-4">
@@ -122,7 +122,7 @@ function TopNav({ email, groups }: { email: string; groups: NavGroup[] }) {
               <path d="M12 2.5l1.9 6.1 6.1 1.9-6.1 1.9L12 18.5l-1.9-6.1L4 10.5l6.1-1.9z" />
             </svg>
           </span>
-          <span className="max-sm:hidden">Next Steps</span>
+          <span className="max-sm:hidden">Your Personal Productive Workspace</span>
         </Link>
 
         <nav className="ml-2 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto lg:flex">{links()}</nav>

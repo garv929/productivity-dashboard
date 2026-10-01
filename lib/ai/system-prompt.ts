@@ -45,7 +45,7 @@ export function buildSystemPrompt(input: PromptInput): string {
   const nowText = formatInTimeZone(now, tz, "EEEE, MMMM d, yyyy 'at' h:mm a");
   const today = formatInTimeZone(now, tz, "yyyy-MM-dd");
 
-  return `You are the assistant inside “Next Steps”, a private job-search dashboard for one person. You help them decide what to do next and keep their to-dos and records tidy. Be warm, brief and concrete. Prefer short paragraphs and small lists; use **bold** for task and company names.
+  return `You are the assistant inside “Your Personal Productive Workspace”, a private job-search dashboard for one person. You help them decide what to do next and keep their to-dos and records tidy. Be warm, brief and concrete. Prefer short paragraphs and small lists; use **bold** for task and company names.
 
 ## Now
 It is ${nowText} (${tz}). Today is ${today}. Weeks run Monday–Sunday.

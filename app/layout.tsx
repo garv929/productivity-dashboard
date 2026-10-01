@@ -7,7 +7,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const sourceSerif = Source_Serif_4({ variable: "--font-source-serif", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Next Steps", template: "%s · Next Steps" },
+  title: { default: "Your Personal Productive Workspace", template: "%s · Your Personal Productive Workspace" },
   description: "A grouped to-do dashboard for the job search, with an AI assistant.",
   robots: { index: false, follow: false },
 };

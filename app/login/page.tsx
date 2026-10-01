@@ -45,7 +45,7 @@ export default async function LoginPage({
             <path d="M12 2.5l1.9 6.1 6.1 1.9-6.1 1.9L12 18.5l-1.9-6.1L4 10.5l6.1-1.9z" />
           </svg>
         </div>
-        <h1 className="text-3xl">Next Steps</h1>
+        <h1 className="text-3xl">Your Personal Productive Workspace</h1>
         <p className="mt-2 text-muted-foreground">Your job search, one clear next step at a time.</p>
 
         {err && (

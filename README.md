@@ -1,4 +1,4 @@
-# Next Steps
+# Your Personal Productive Workspace
 
 A private, single-user dashboard for running a job search. It answers one question at a glance — **"what's the next thing I should do?"** — for each area of the search (positioning, applications, networking, interview prep, company research, side income, personal development).
 
