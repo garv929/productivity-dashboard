@@ -17,7 +17,10 @@ export const authConfig = {
         params: {
           scope: GOOGLE_SCOPES,
           access_type: "offline",
-          prompt: "consent",
+          // Always show Google's account chooser (otherwise Google silently uses the
+          // browser's default account), pre-filled with the one account allowed in.
+          prompt: "select_account consent",
+          ...(process.env.ALLOWED_EMAIL && { login_hint: process.env.ALLOWED_EMAIL.trim() }),
           include_granted_scopes: "true",
         },
       },
