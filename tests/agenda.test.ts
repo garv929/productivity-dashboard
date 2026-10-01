@@ -9,7 +9,7 @@ const today = "2026-09-30"; // Wed
 const group = { slug: "applications", name: "Applications", color: "#3b82f6" };
 
 function ev(over: Partial<AgendaEventInput> & Pick<AgendaEventInput, "start" | "end">): AgendaEventInput {
-  return { id: over.title ?? "e", title: "Event", allDay: false, color: null, groupSlug: null, ...over };
+  return { id: over.title ?? "e", title: "Event", allDay: false, description: null, color: null, groupSlug: null, ...over };
 }
 
 const build = (events: AgendaEventInput[], tasks: ReturnType<typeof task>[] = []) =>

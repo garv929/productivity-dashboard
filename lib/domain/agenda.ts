@@ -9,8 +9,10 @@ export type AgendaEventInput = {
   start: string;
   end: string;
   allDay: boolean;
+  description: string | null;
   color: string | null;
   groupSlug: string | null;
+  groupName?: string | null;
 };
 
 export type AgendaGroup = { slug: string; name: string; color: string };
