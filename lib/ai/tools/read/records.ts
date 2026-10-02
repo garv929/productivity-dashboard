@@ -1,7 +1,7 @@
 import "server-only";
 import { tool } from "ai";
 import { z } from "zod";
-import { applicationStage, companyStatus, incomeStatus } from "@/lib/db/schema";
+import { applicationStage, companyStatus, companyTier, incomeStatus } from "@/lib/db/schema";
 import { listApplications } from "@/lib/services/applications";
 import { listContacts } from "@/lib/services/contacts";
 import { listCompanies } from "@/lib/services/companies";
@@ -83,11 +83,15 @@ export function recordReadTools(tc: ToolCtx) {
     }),
 
     get_companies: tool({
-      description: "Target companies (research). Filter by status.",
-      inputSchema: z.object({ status: z.enum(companyStatus.enumValues).optional() }),
-      execute: async ({ status }) => {
+      description:
+        "Target companies (research), sorted Tier 1 → Tier 3 → unrated. Filter by status and/or tier (tier is how attractive the user finds the company; \"unrated\" = not tiered yet).",
+      inputSchema: z.object({
+        status: z.enum(companyStatus.enumValues).optional(),
+        tier: z.enum([...companyTier.enumValues, "unrated"]).optional(),
+      }),
+      execute: async ({ status, tier }) => {
         try {
-          const rows = await listCompanies(tc.userId, { status });
+          const rows = await listCompanies(tc.userId, { status, tier });
           return untrusted(
             rows.map((c) => ({
               id: c.id,
@@ -95,6 +99,7 @@ export function recordReadTools(tc: ToolCtx) {
               domain: c.domain,
               description: c.description,
               status: c.status,
+              tier: c.tier ?? "unrated",
               why: c.why,
               rolesOfInterest: c.rolesOfInterest,
               hasLinkedTask: Boolean(c.todoistTaskId),

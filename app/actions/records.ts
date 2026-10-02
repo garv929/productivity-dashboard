@@ -6,6 +6,7 @@ import { run } from "./_run";
 import {
   applicationStage,
   companyStatus,
+  companyTier,
   contactRelationship,
   focusStatus,
   incomeStatus,
@@ -100,6 +101,7 @@ const companySchema = z.object({
   why: optText.optional(),
   rolesOfInterest: optText.optional(),
   status: z.enum(companyStatus.enumValues).optional(),
+  tier: z.enum(companyTier.enumValues).nullish(),
   notes: optText.optional(),
 });
 

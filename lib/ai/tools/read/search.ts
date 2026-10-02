@@ -49,7 +49,7 @@ export function searchTool(tc: ToolCtx) {
           }
           for (const a of apps) docs.push({ type: "application", id: a.id, title: `${a.companyName} – ${a.role}`, detail: a.notes ?? "", extra: { stage: a.stage } });
           for (const c of contacts) docs.push({ type: "contact", id: c.id, title: c.name, detail: [c.company, c.notes].filter(Boolean).join(" "), extra: { company: c.company } });
-          for (const c of companies) docs.push({ type: "company", id: c.id, title: c.name, detail: [c.rolesOfInterest, c.why].filter(Boolean).join(" "), extra: { status: c.status } });
+          for (const c of companies) docs.push({ type: "company", id: c.id, title: c.name, detail: [c.rolesOfInterest, c.why].filter(Boolean).join(" "), extra: { status: c.status, tier: c.tier ?? "unrated" } });
           for (const i of interviews)
             docs.push({ type: "interview", id: i.id, title: `${i.companyName ?? "Interview"}${i.role ? ` – ${i.role}` : ""}`, detail: i.stage ?? "", extra: { date: localDate(i.scheduledAt, tc.tz) } });
           for (const o of options) docs.push({ type: "income_option", id: o.id, title: o.name, detail: o.verdictNotes ?? "", extra: { status: o.status } });

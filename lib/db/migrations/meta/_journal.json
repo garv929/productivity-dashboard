@@ -29,6 +29,13 @@
       "when": 1790804411525,
       "tag": "0003_company_enrichment",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790902841961,
+      "tag": "0004_company_tier",
+      "breakpoints": true
     }
   ]
 }

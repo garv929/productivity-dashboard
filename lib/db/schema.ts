@@ -112,6 +112,8 @@ export const companyStatus = pgEnum("company_status", [
   "done",
 ]);
 
+export const companyTier = pgEnum("company_tier", ["tier_1", "tier_2", "tier_3"]);
+
 export const storyKind = pgEnum("story_kind", ["30s", "interview", "networking", "followups"]);
 
 export const incomeType = pgEnum("income_type", ["online_work", "part_time", "freelance", "other"]);
@@ -186,6 +188,8 @@ export const companies = pgTable(
     why: text("why"),
     rolesOfInterest: text("roles_of_interest"),
     status: companyStatus("status").notNull().default("researching"),
+    /** How attractive the company is to the user; null = not rated yet. */
+    tier: companyTier("tier"),
     notes: text("notes"),
     todoistTaskId: text("todoist_task_id"),
     createdAt: createdAt(),
@@ -426,6 +430,7 @@ export type Contact = typeof contacts.$inferSelect;
 export type ContactRelationship = (typeof contactRelationship.enumValues)[number];
 export type Company = typeof companies.$inferSelect;
 export type CompanyStatus = (typeof companyStatus.enumValues)[number];
+export type CompanyTier = (typeof companyTier.enumValues)[number];
 export type Interview = typeof interviews.$inferSelect;
 export type PrepQuestion = typeof prepQuestions.$inferSelect;
 export type Story = typeof stories.$inferSelect;

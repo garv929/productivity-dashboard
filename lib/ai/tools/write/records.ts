@@ -1,10 +1,11 @@
 import "server-only";
 import { tool } from "ai";
 import { z } from "zod";
-import { applicationStage, companyStatus, contactRelationship, focusStatus, incomeStatus, incomeType } from "@/lib/db/schema";
+import { applicationStage, companyStatus, companyTier, contactRelationship, focusStatus, incomeStatus, incomeType } from "@/lib/db/schema";
 import { getApplication, STAGE_LABEL } from "@/lib/services/applications";
 import { getContact } from "@/lib/services/contacts";
-import { getCompany, readyTaskTitle } from "@/lib/services/companies";
+import { companyFingerprint, getCompany, readyTaskTitle } from "@/lib/services/companies";
+import { tierLabel } from "@/lib/domain/company-tier";
 import { sideIncomeHoursThisWeek, listIncomeOptions } from "@/lib/services/income";
 import { FOCUS_ACTIVE_LIMIT, listFocusItems } from "@/lib/services/focus";
 import { getGroupByKind } from "@/lib/domain/groups";
@@ -125,7 +126,7 @@ export function recordWriteTools(tc: ToolCtx) {
 
     upsert_company: tool({
       description:
-        "PROPOSE creating (needs name) or updating a target company (requires confirmation). Setting status ready_to_apply / ready_to_reach_out also creates the linked to-do in Applications / Networking & Follow-ups.",
+        "PROPOSE creating (needs name) or updating a target company (requires confirmation). Setting status ready_to_apply / ready_to_reach_out also creates the linked to-do in Applications / Networking & Follow-ups. Set `tier` only to the tier the user chose (null clears it back to unrated).",
       inputSchema: z.object({
         id: z.uuid().optional(),
         name: z.string().trim().min(1).max(120).optional(),
@@ -134,6 +135,7 @@ export function recordWriteTools(tc: ToolCtx) {
         why: z.string().max(2000).optional(),
         rolesOfInterest: z.string().max(500).optional(),
         status: z.enum(companyStatus.enumValues).optional(),
+        tier: z.enum(companyTier.enumValues).nullable().optional().describe("Tier 1 = most attractive; only as decided by the user"),
         notes: z.string().max(4000).optional(),
       }),
       execute: (input) =>
@@ -142,8 +144,13 @@ export function recordWriteTools(tc: ToolCtx) {
           if (!prev && !input.name) return { error: "A new company needs a name." };
           const name = input.name ?? prev!.name;
           let summary = prev ? `Update ${b(name)}` : `Add target company ${b(name)}${input.domain ? ` (${input.domain})` : ""}`;
+          const tierChanged = input.tier !== undefined && input.tier !== (prev?.tier ?? null);
+          if (tierChanged && (prev || input.tier)) {
+            summary = prev ? `Set ${b(name)} to ${b(tierLabel(input.tier))}` : `${summary} at ${b(tierLabel(input.tier))}`;
+          }
           if (input.status && input.status !== prev?.status) {
-            summary = prev ? `Mark ${b(name)} as ${b(COMPANY_LABEL[input.status])}` : `${summary} as ${b(COMPANY_LABEL[input.status])}`;
+            const status = b(COMPANY_LABEL[input.status]);
+            summary = prev && !tierChanged ? `Mark ${b(name)} as ${status}` : `${summary}${prev ? ", mark it" : ""} as ${status}`;
             const title = readyTaskTitle({ name, rolesOfInterest: input.rolesOfInterest ?? prev?.rolesOfInterest ?? null }, input.status);
             if (title) {
               const g = await getGroupByKind(tc.userId, input.status === "ready_to_apply" ? "pipeline" : "people");
@@ -151,7 +158,7 @@ export function recordWriteTools(tc: ToolCtx) {
               summary += ` (creates “${title}” in ${g.name})`;
             }
           }
-          return [makeStep("upsert_company", summary, input, prev?.status ?? null)];
+          return [makeStep("upsert_company", summary, input, prev ? companyFingerprint(prev) : null)];
         }),
     }),
 

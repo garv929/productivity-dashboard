@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/states";
+import { CompanyTierBadge } from "@/components/company-tier-badge";
+import { tierForApplication } from "@/lib/domain/company-tier";
 import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, useAction, WeeklyCounter } from "./shared";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +96,10 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
               {data.applications.map((a) => (
                 <tr key={a.id}>
                   <td className="px-3 py-2 font-medium">
-                    {a.url ? <a className="hover:underline" href={a.url} target="_blank" rel="noreferrer">{a.companyName}</a> : a.companyName}
+                    <span className="flex items-center gap-2">
+                      {a.url ? <a className="hover:underline" href={a.url} target="_blank" rel="noreferrer">{a.companyName}</a> : a.companyName}
+                      <CompanyTierBadge tier={tierForApplication(a, data.companies)} />
+                    </span>
                   </td>
                   <td className="px-3 py-2">{a.role}</td>
                   <td className="px-3 py-2">
@@ -132,7 +137,10 @@ function ApplicationCard({
     <div className="rounded-lg border bg-card p-2.5 text-sm">
       <div className="flex items-start gap-1">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{a.companyName}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate font-medium">{a.companyName}</p>
+            <CompanyTierBadge tier={tierForApplication(a, companies)} />
+          </div>
           <p className="truncate text-xs text-muted-foreground">{a.role}</p>
         </div>
         {a.url && (
