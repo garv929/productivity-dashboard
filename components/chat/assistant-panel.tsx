@@ -4,15 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowUp, Check, History, Loader2, MessageSquarePlus, Square, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, FileSpreadsheet, FileText, History, Loader2, MessageSquarePlus, Paperclip, Square, Trash2, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAssistant } from "./assistant-context";
 import { ConfirmationCard } from "./confirmation-card";
 import { TOOL_STATUS, WRITE_TOOL_NAMES, type ChatPageContext, type ProposalOutput, type StepPreview } from "@/lib/ai/types";
 import type { NavGroup } from "@/components/shell/app-shell";
+import { ACCEPTED_EXTENSIONS, ATTACHMENT_LIMITS } from "@/lib/domain/attachments";
 import { cn } from "@/lib/utils";
 
 const SESSION_KEY = "nsd:chat-session";
@@ -179,11 +180,11 @@ function Thread({ sessionId, initialMessages, groups }: { sessionId: string; ini
   });
 
   const busy = status === "submitted" || status === "streaming";
-  const send = (text: string) => {
+  const send = (text: string, files: FileUIPart[] = []) => {
     const t = text.trim();
-    if (!t || busy) return;
+    if ((!t && files.length === 0) || busy) return;
     clearError();
-    void sendMessage({ text: t }, { body: { page } });
+    void sendMessage({ text: t, files }, { body: { page } });
   };
 
   useEffect(() => {
@@ -274,9 +275,19 @@ function MessageView({
 }) {
   if (message.role === "user") {
     const text = message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+    const files = message.parts.filter((p): p is FileUIPart => p.type === "file");
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-secondary px-4 py-2.5 text-sm whitespace-pre-wrap text-secondary-foreground">{text}</div>
+      <div className="flex flex-col items-end gap-1.5">
+        {files.length > 0 && (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+            {files.map((f, i) => (
+              <AttachmentChip key={i} name={f.filename ?? "Attachment"} />
+            ))}
+          </div>
+        )}
+        {text.trim() && (
+          <div className="max-w-[85%] rounded-2xl rounded-br-md bg-secondary px-4 py-2.5 text-sm whitespace-pre-wrap text-secondary-foreground">{text}</div>
+        )}
       </div>
     );
   }
@@ -348,9 +359,50 @@ function ToolLine({ part, groupName }: { part: ToolPartLike; groupName: (slug: u
 
 /* --------------------------------------------------------------- Composer */
 
-function Composer({ busy, onSend, onStop, placeholder }: { busy: boolean; onSend: (t: string) => void; onStop: () => void; placeholder: string }) {
+function AttachmentChip({ name, detail, state, onRemove }: { name: string; detail?: string; state?: "reading" | "error"; onRemove?: () => void }) {
+  const Icon = /\.(xlsx|xlsm|csv|tsv)$/i.test(name) ? FileSpreadsheet : FileText;
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full items-center gap-1.5 rounded-lg border bg-card px-2 py-1 font-sans text-xs",
+        state === "error" && "border-destructive/40 text-destructive",
+      )}
+    >
+      {state === "reading" ? <Loader2 className="size-3.5 shrink-0 animate-spin" /> : <Icon className="size-3.5 shrink-0 text-muted-foreground" />}
+      <span className="truncate">{name}</span>
+      {detail && <span className="shrink-0 text-muted-foreground">· {detail}</span>}
+      {onRemove && (
+        <button type="button" onClick={onRemove} className="ml-0.5 rounded text-muted-foreground hover:text-foreground" aria-label={`Remove ${name}`}>
+          <X className="size-3" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+type PendingAttachment = { id: string; name: string; state: "reading" | "ready" | "error"; detail?: string; part?: FileUIPart };
+
+type Extracted = { filename: string; text: string; summary: string; truncated: boolean };
+
+/** Reads the file on the server and returns it as a text attachment for the next message. */
+async function readAttachment(file: File): Promise<{ part: FileUIPart; detail: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/chat/attachments", { method: "POST", body: form });
+  const body = (await res.json().catch(() => ({}))) as Partial<Extracted> & { message?: string; error?: string };
+  if (!res.ok || typeof body.text !== "string") throw new Error(body.message ?? body.error ?? "Couldn't read that file.");
+  return {
+    part: { type: "file", mediaType: "text/plain", filename: body.filename ?? file.name, url: `data:text/plain;charset=utf-8,${encodeURIComponent(body.text)}` },
+    detail: `${body.summary ?? "read"}${body.truncated ? " (partly)" : ""}`,
+  };
+}
+
+function Composer({ busy, onSend, onStop, placeholder }: { busy: boolean; onSend: (t: string, files: FileUIPart[]) => void; onStop: () => void; placeholder: string }) {
   const [value, setValue] = useState("");
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [dragging, setDragging] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const { open } = useAssistant();
 
   useEffect(() => {
@@ -364,47 +416,125 @@ function Composer({ busy, onSend, onStop, placeholder }: { busy: boolean; onSend
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
   }, [value]);
 
+  const addFiles = (list: FileList | File[]) => {
+    const room = ATTACHMENT_LIMITS.maxFiles - attachments.length;
+    for (const file of Array.from(list).slice(0, Math.max(0, room))) {
+      const id = newId();
+      setAttachments((cur) => [...cur, { id, name: file.name, state: "reading" }]);
+      readAttachment(file).then(
+        ({ part, detail }) => setAttachments((cur) => cur.map((a) => (a.id === id ? { ...a, state: "ready", part, detail } : a))),
+        (err: Error) => setAttachments((cur) => cur.map((a) => (a.id === id ? { ...a, state: "error", detail: err.message } : a))),
+      );
+    }
+  };
+
+  const ready = attachments.filter((a) => a.state === "ready" && a.part);
+  const reading = attachments.some((a) => a.state === "reading");
+  const canSend = !busy && !reading && (value.trim().length > 0 || ready.length > 0);
+
   const submit = () => {
-    if (!value.trim() || busy) return;
-    onSend(value);
+    if (!canSend) return;
+    onSend(value, ready.map((a) => a.part!));
     setValue("");
+    setAttachments([]);
   };
 
   return (
     <div className="shrink-0 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
       <form
-        className="mx-auto flex max-w-2xl items-end gap-2 rounded-3xl border bg-card p-2 pl-4 shadow-sm focus-within:border-primary/40"
+        className={cn(
+          "mx-auto max-w-2xl rounded-3xl border bg-card p-2 shadow-sm focus-within:border-primary/40",
+          dragging && "border-primary/60 bg-primary/[0.03]",
+        )}
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setDragging(false);
+          addFiles(e.dataTransfer.files);
+        }}
       >
-        <textarea
-          ref={ref}
-          rows={1}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={placeholder}
-          aria-label="Message the assistant"
-          className="max-h-44 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
-        />
-        {busy ? (
-          <Button type="button" size="icon" variant="secondary" className="rounded-full" onClick={onStop} aria-label="Stop">
-            <Square className="size-3.5 fill-current" />
-          </Button>
-        ) : (
-          <Button type="submit" size="icon" className="rounded-full" disabled={!value.trim()} aria-label="Send">
-            <ArrowUp />
-          </Button>
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-2 pt-1 pb-2">
+            {attachments.map((a) => (
+              <AttachmentChip
+                key={a.id}
+                name={a.name}
+                detail={a.detail}
+                state={a.state === "ready" ? undefined : a.state}
+                onRemove={() => setAttachments((cur) => cur.filter((x) => x.id !== a.id))}
+              />
+            ))}
+          </div>
         )}
+        <div className="flex items-end gap-1">
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            accept={ACCEPTED_EXTENSIONS.join(",")}
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="rounded-full text-muted-foreground"
+            onClick={() => fileInput.current?.click()}
+            disabled={attachments.length >= ATTACHMENT_LIMITS.maxFiles}
+            aria-label="Attach a file"
+            title="Attach a file (Excel, CSV, Word, PDF, text · up to 3 MB)"
+          >
+            <Paperclip className="size-4" />
+          </Button>
+          <textarea
+            ref={ref}
+            rows={1}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            onPaste={(e) => {
+              if (e.clipboardData.files.length) {
+                e.preventDefault();
+                addFiles(e.clipboardData.files);
+              }
+            }}
+            placeholder={attachments.length ? "Say what to do with the file…" : placeholder}
+            aria-label="Message the assistant"
+            className="max-h-44 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+          />
+          {busy ? (
+            <Button type="button" size="icon" variant="secondary" className="rounded-full" onClick={onStop} aria-label="Stop">
+              <Square className="size-3.5 fill-current" />
+            </Button>
+          ) : (
+            <Button type="submit" size="icon" className="rounded-full" disabled={!canSend} aria-label="Send">
+              {reading ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+            </Button>
+          )}
+        </div>
       </form>
-      <p className="mt-1.5 text-center text-[11px] text-muted-foreground">Changes always wait for your confirmation. Enter to send, Shift+Enter for a new line.</p>
+      <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+        Changes always wait for your confirmation. Attach Excel, CSV, Word, PDF or text files with 📎 or drag and drop.
+      </p>
     </div>
   );
 }

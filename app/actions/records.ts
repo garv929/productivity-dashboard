@@ -16,6 +16,7 @@ import {
 import { upsertApplication } from "@/lib/services/applications";
 import { logTouch, upsertContact } from "@/lib/services/contacts";
 import { upsertCompany } from "@/lib/services/companies";
+import { enrichCompanies } from "@/lib/services/company-import";
 import { addQuestion, logPrepSession, saveStory, setPracticed, upsertInterview } from "@/lib/services/prep";
 import { logSideIncomeHours, upsertIncomeOption } from "@/lib/services/income";
 import { setFocusStatus, upsertFocusItem } from "@/lib/services/focus";
@@ -110,6 +111,15 @@ export async function saveCompanyAction(input: z.input<typeof companySchema>) {
     const res = await upsertCompany(ctx, companySchema.parse(input));
     refresh();
     return { id: res.company.id, createdTask: res.createdTask };
+  });
+}
+
+/** Fills in missing websites/descriptions (a batch at a time, so the request stays short). */
+export async function enrichMissingCompaniesAction() {
+  return run(async (ctx) => {
+    const res = await enrichCompanies(ctx.userId, undefined, 20);
+    refresh();
+    return res;
   });
 }
 

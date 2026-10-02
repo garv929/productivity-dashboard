@@ -2,7 +2,10 @@
 
 export type PendingStatus = "awaiting_confirmation" | "executing" | "executed" | "failed" | "cancelled" | "expired";
 
-export type StepPreview = { tool: string; summary: string };
+/** Optional table shown under a step on the confirmation card (e.g. the rows of an import). */
+export type StepDetails = { columns: string[]; rows: string[][]; note?: string };
+
+export type StepPreview = { tool: string; summary: string; details?: StepDetails };
 
 export type StepResultView = {
   index: number;
@@ -47,6 +50,7 @@ export const WRITE_TOOL_NAMES = [
   "upsert_contact",
   "log_touch",
   "upsert_company",
+  "import_companies",
   "upsert_side_income_option",
   "log_side_income_hours",
   "set_focus_item_status",
@@ -76,6 +80,7 @@ export const TOOL_STATUS: Record<string, string> = {
   upsert_contact: "Drafting a contact update",
   log_touch: "Drafting a contact log",
   upsert_company: "Drafting a company update",
+  import_companies: "Preparing the company import",
   upsert_side_income_option: "Drafting an income-option update",
   log_side_income_hours: "Drafting an hours log",
   set_focus_item_status: "Drafting a focus change",

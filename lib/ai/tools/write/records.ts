@@ -6,6 +6,8 @@ import { getApplication, STAGE_LABEL } from "@/lib/services/applications";
 import { getContact } from "@/lib/services/contacts";
 import { companyFingerprint, getCompany, readyTaskTitle } from "@/lib/services/companies";
 import { tierLabel } from "@/lib/domain/company-tier";
+import { MAX_IMPORT_ROWS } from "@/lib/domain/company-import";
+import { previewImport } from "@/lib/services/company-import";
 import { sideIncomeHoursThisWeek, listIncomeOptions } from "@/lib/services/income";
 import { FOCUS_ACTIVE_LIMIT, listFocusItems } from "@/lib/services/focus";
 import { getGroupByKind } from "@/lib/domain/groups";
@@ -120,6 +122,64 @@ export function recordWriteTools(tc: ToolCtx) {
               `Log a ${TOUCH_LABEL[input.type]} with ${b(c.name)}${input.nextCheckInDate ? `, next check-in ${fmtDay(input.nextCheckInDate)}` : ""}`,
               { contactId: c.id, type: input.type, nextCheckInAt: at9(input.nextCheckInDate), note: input.note },
             ),
+          ];
+        }),
+    }),
+
+    import_companies: tool({
+      description: `PROPOSE adding many target companies at once, e.g. from an attached spreadsheet or document (requires confirmation; one card for the whole list). Map the file's columns to these fields yourself — any header names, any order; tiers written as A/B/C, High/Med/Low or 1/2/3 become tier_1/2/3; put leftover useful columns into notes. Include website/description only if the file has them (missing ones are looked up automatically after import). Never invent values. Existing companies are matched by name or website and only get empty fields filled (plus tier). New companies are always created as Researching. Max ${MAX_IMPORT_ROWS} rows per call; split larger lists into several calls in the same turn.`,
+      inputSchema: z.object({
+        sourceName: z.string().max(200).optional().describe("The attached file's name"),
+        companies: z
+          .array(
+            z.object({
+              name: z.string().trim().min(1).max(120),
+              domain: z.string().trim().max(253).optional(),
+              description: z.string().max(1000).optional(),
+              why: z.string().max(2000).optional(),
+              rolesOfInterest: z.string().max(500).optional(),
+              tier: z.enum(companyTier.enumValues).optional(),
+              notes: z.string().max(4000).optional(),
+            }),
+          )
+          .min(1)
+          .max(MAX_IMPORT_ROWS),
+      }),
+      execute: (input) =>
+        proposeSteps(tc, async () => {
+          const plan = await previewImport(tc.userId, input.companies);
+          const total = plan.creates.length + plan.updates.length;
+          if (total === 0) {
+            return { error: `Nothing to import: ${plan.skipped.length} row(s) skipped (${[...new Set(plan.skipped.map((s) => s.reason))].join(", ") || "no names found"}).` };
+          }
+          const cut = (v: string | null | undefined, n = 60) => (v ? (v.length > n ? `${v.slice(0, n - 1)}…` : v) : "");
+          const rows: string[][] = [
+            ...plan.creates.map((r) => ["New", r.name, tierLabel(r.tier ?? null), r.domain ?? "", cut(r.rolesOfInterest), cut(r.why ?? r.notes)]),
+            ...plan.updates.map((u) => [
+              "Update",
+              u.name,
+              u.patch.tier ? tierLabel(u.patch.tier) : "—",
+              u.patch.domain ?? "",
+              cut(u.patch.rolesOfInterest),
+              `fills ${Object.keys(u.patch).filter((k) => k !== "tier").join(", ") || "tier only"}`,
+            ]),
+            ...plan.skipped.map((s) => ["Skip", s.name, "", "", "", s.reason]),
+          ];
+          const parts = [`${plan.creates.length} new`, `${plan.updates.length} update${plan.updates.length === 1 ? "" : "s"}`];
+          if (plan.skipped.length) parts.push(`${plan.skipped.length} skipped`);
+          return [
+            {
+              ...makeStep(
+                "import_companies",
+                `Import ${b(`${total} compan${total === 1 ? "y" : "ies"}`)}${input.sourceName ? ` from ${input.sourceName}` : ""} (${parts.join(", ")})`,
+                { rows: input.companies, sourceName: input.sourceName },
+              ),
+              details: {
+                columns: ["", "Company", "Tier", "Website", "Roles", "Why / notes"],
+                rows,
+                note: "New companies start as Researching (no to-dos are created). Missing websites and descriptions are filled in automatically after you confirm.",
+              },
+            },
           ];
         }),
     }),

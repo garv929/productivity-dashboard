@@ -20,7 +20,7 @@ function toRecord(row: PendingAction): PendingRecord {
   };
 }
 
-const previewOf = (steps: ActionStep[]) => ({ steps: steps.map((s) => ({ tool: s.tool, summary: s.summary })) });
+const previewOf = (steps: ActionStep[]) => ({ steps: steps.map((s) => ({ tool: s.tool, summary: s.summary, details: s.details })) });
 const toolNameOf = (steps: ActionStep[]) => Array.from(new Set(steps.map((s) => s.tool))).join("+").slice(0, 200);
 
 export const pendingRepo: PendingRepo = {

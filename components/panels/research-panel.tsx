@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Link2, Loader2, Pencil, Plus, Sparkles } from "lucide-react";
+import { Download, ExternalLink, FileUp, Link2, Loader2, Pencil, Plus, Sparkles, Wand2 } from "lucide-react";
 import type { PanelData } from "@/lib/services/panels";
 import type { Company, CompanyStatus } from "@/lib/db/schema";
-import { saveCompanyAction } from "@/app/actions/records";
+import { enrichMissingCompaniesAction, saveCompanyAction } from "@/app/actions/records";
+import { useAssistant } from "@/components/chat/assistant-context";
 import { fetcher, unwrap } from "@/lib/client/fetcher";
 import { logoUrl, normalizeDomain, type CompanySuggestion } from "@/lib/domain/company-lookup";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,15 @@ export function ResearchPanel({ data, readOnly }: { data: Data; readOnly: boolea
     });
   const setStatus = (c: Company, status: CompanyStatus) => save(c, { status }, `${c.name} → ${STATUSES.find((s) => s.value === status)?.label}`);
   const setTier = (c: Company, tier: Tier | null) => save(c, { tier }, `${c.name} → ${tierLabel(tier)}`);
+  const { setOpen: openAssistant } = useAssistant();
+  const missingDetails = data.companies.filter((c) => !c.domain || !c.description).length;
+  const fillMissing = () =>
+    run(async () => {
+      try {
+        const res = unwrap(await enrichMissingCompaniesAction());
+        toast.success(res.filled ? `Filled in details for ${res.filled} of ${res.checked} companies` : `Checked ${res.checked}; nothing new found`);
+      } catch {}
+    });
 
   // Companies arrive sorted by tier, then ready-first status, then name.
   const byTier = (key: TierKey) => data.companies.filter((c) => (c.tier ?? "unrated") === key);
@@ -62,10 +72,30 @@ export function ResearchPanel({ data, readOnly }: { data: Data; readOnly: boolea
   return (
     <div>
       <PanelHeader title="Target companies">
+        {!readOnly && missingDetails > 0 && (
+          <Button size="sm" variant="ghost" onClick={fillMissing} disabled={pending} title="Look up websites and descriptions for companies that are missing them">
+            <Wand2 /> Fill missing details ({missingDetails})
+          </Button>
+        )}
+        {!readOnly && (
+          <Button size="sm" variant="outline" onClick={() => openAssistant(true)} title="Attach a spreadsheet or document in the assistant">
+            <FileUp /> Import from a file
+          </Button>
+        )}
         {!readOnly && <CompanyDialog trigger={<Button size="sm"><Plus /> Add</Button>} />}
       </PanelHeader>
       <p className="-mt-1 mb-3 text-sm text-muted-foreground">
         Tier 1 is where you most want to work. Moving a company to a “Ready” status creates a linked to-do in Applications or Networking &amp; Follow-ups.
+        {!readOnly && (
+          <>
+            {" "}
+            To import a list, attach any Excel, CSV or Word file in the assistant (📎); no special format needed, or start from the{" "}
+            <a href="/company-import-template.csv" download className="inline-flex items-center gap-0.5 text-primary hover:underline">
+              template <Download className="size-3" />
+            </a>
+            .
+          </>
+        )}
       </p>
       {data.companies.length === 0 ? (
         <EmptyState title="No target companies yet">Add one, or tell the assistant “Add Ramp as a tier 1 target, I like their ops-heavy roles.”</EmptyState>
