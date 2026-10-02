@@ -5,7 +5,7 @@ A private, single-user dashboard for running a job search. It answers one questi
 - **Todoist is the source of truth for tasks.** The dashboard reads and writes tasks only inside the Todoist projects/sections mapped to its groups. The Inbox and unmapped projects can be read by the assistant but never changed.
 - **Google Calendar is read-only.** Time blocks are matched to groups by title so the home page can show what you're scheduled to work on *now*.
 - **Postgres (Neon) holds everything else:** applications, contacts and touches, companies, interviews, prep, side-income options, focus items, weekly targets and reviews, chat history, and pending assistant actions.
-- **An AI assistant** (Claude via the Vercel AI SDK) can read everything and propose changes. Every write is shown as a confirmation card and **nothing changes until you confirm**. Confirmed actions can be undone.
+- **An AI assistant** (Claude via the Vercel AI SDK) can read everything and propose changes. You can attach files (Excel, CSV, Word, PDF, text; up to 3 MB), e.g. a list of target companies in any format, which it maps and imports onto Company Research as one confirmation card, then fills in missing websites and descriptions. Every write is shown as a confirmation card and **nothing changes until you confirm**. Confirmed actions can be undone.
 
 Sign-in is Google via Auth.js, restricted to a single allowlisted email.
 
@@ -18,7 +18,7 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
   | `pipeline` | Applications board/table with stages, plus each company's tier badge |
   | `people` | Contacts, follow-up due dates, touch logging |
   | `prep` | Interviews, prep sessions, question bank, STAR stories |
-  | `research` | Companies grouped by tier (Tier 1 = most attractive, Tier 2, Tier 3, Unrated) with tier filters and a one-click tier picker; name autocomplete fills in the website, logo and a homepage description; "Ready to apply" creates a linked task in Applications |
+  | `research` | Companies grouped by tier (Tier 1 = most attractive, Tier 2, Tier 3, Unrated) with tier filters and a one-click tier picker; name autocomplete fills in the website, logo and a homepage description; bulk import from any spreadsheet or document via the assistant (CSV template on the page) and "Fill missing details"; "Ready to apply" creates a linked task in Applications |
   | `options` | Side-income options, hours logged vs. weekly cap |
   | `focus` | Personal-development items, max 2 active |
 - **Scorecard:** Monday–Sunday weekly metrics (in `APP_TIMEZONE`) vs. targets, per-week overrides, chart, and a weekly review form.
@@ -256,6 +256,7 @@ Unit tests (Vitest, no network or credentials) cover:
 - calendar title → group matching and rule precedence (`tests/calendar-match.test.ts`)
 - week calendar layout: day placement, time spans across midnight, overlap lanes (`tests/agenda.test.ts`), and Google Calendar description HTML → text (`tests/text.test.ts`)
 - Monday–Sunday week boundaries in `America/Los_Angeles`, including the March 8 and November 1, 2026 DST transitions (`tests/time.test.ts`)
+- file attachments (CSV/TSV parsing, sheet → text, Word tables and lists) and company import planning: name matching, fill-only-empty updates, duplicate skipping, exact-name autocomplete picks (`tests/company-import.test.ts`)
 - company enrichment parsing: domain normalisation, autocomplete de-duplication, and homepage description extraction (`tests/company-lookup.test.ts`)
 - the confirmation state machine: single execution under concurrent confirms, expiry, cancellation, stale re-validation, stop-on-failure, retry-remaining, undo-once, and typed-confirmation parsing (`tests/pending-actions.test.ts`)
 

@@ -5,7 +5,8 @@ import { actions } from "@/lib/ai/executor";
 import { toView } from "@/lib/ai/pending-actions";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Long enough for an import's background enrichment (after()) to finish.
+export const maxDuration = 300;
 
 /** The only way an assistant proposal executes: session + awaiting status + unexpired, claimed atomically. */
 export const POST = withOwner<{ params: Promise<{ id: string }> }>(async (_req, owner, { params }) => {

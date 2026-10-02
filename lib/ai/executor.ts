@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { env } from "@/lib/env";
 import type { ApplicationStage, CompanyStatus, CompanyTier, ContactRelationship, FocusStatus, IncomeStatus, IncomeType } from "@/lib/db/schema";
 import {
@@ -23,6 +24,8 @@ import { getApplication, restoreApplication, upsertApplication } from "@/lib/ser
 import { getContact, logTouch, restoreContact, upsertContact, type TouchType } from "@/lib/services/contacts";
 import { companyFingerprint, getCompany, restoreCompany, upsertCompany } from "@/lib/services/companies";
 import { tierLabel } from "@/lib/domain/company-tier";
+import type { ImportRow } from "@/lib/domain/company-import";
+import { applyImport, enrichCompanies } from "@/lib/services/company-import";
 import { logSideIncomeHours, upsertIncomeOption } from "@/lib/services/income";
 import { listFocusItems, setFocusStatus } from "@/lib/services/focus";
 import { getWeeklyReview, saveWeeklyReview, type ReviewInput } from "@/lib/services/targets";
@@ -86,6 +89,7 @@ export type StepParamMap = {
   };
   log_touch: { contactId: string; type: TouchType; nextCheckInAt?: string | null; note?: string };
   upsert_company: { id?: string; name?: string; domain?: string | null; description?: string | null; why?: string | null; rolesOfInterest?: string | null; status?: CompanyStatus; tier?: CompanyTier | null; notes?: string | null };
+  import_companies: { rows: ImportRow[]; sourceName?: string };
   upsert_side_income_option: {
     id?: string;
     name?: string;
@@ -236,6 +240,27 @@ export function createStepRunner(ctx: ServiceCtx) {
         if (res.createdTask) undo.push({ kind: "delete_created_task", taskId: res.createdTask.id });
         return {
           summary: res.createdTask ? `${step.summary} (created “${res.createdTask.content}” in ${res.createdTask.groupName})` : undefined,
+          undo,
+        };
+      }
+      case "import_companies": {
+        const p = step.params as StepParamMap["import_companies"];
+        const res = await applyImport(ctx, p.rows);
+        const undo: UndoOp[] = [
+          ...res.created.map((r) => ({ kind: "restore_company", snapshot: null, createdId: r.company.id })),
+          ...res.updated.map((r) => ({ kind: "restore_company", snapshot: r.previous, createdId: undefined })),
+        ];
+        // Websites/descriptions are filled in after the response so confirming stays fast.
+        const touched = [...res.created, ...res.updated].map((r) => r.company.id);
+        if (touched.length) {
+          after(() =>
+            enrichCompanies(ctx.userId, touched).catch((err) => console.error("[import] enrichment failed", err)),
+          );
+        }
+        const parts = [`added ${res.created.length}`, `updated ${res.updated.length}`];
+        if (res.plan.skipped.length) parts.push(`skipped ${res.plan.skipped.length}`);
+        return {
+          summary: `Imported companies${p.sourceName ? ` from ${p.sourceName}` : ""}: ${parts.join(", ")}. Filling in missing websites and descriptions in the background.`,
           undo,
         };
       }

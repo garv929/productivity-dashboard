@@ -6,7 +6,7 @@ import useSWR, { useSWRConfig } from "swr";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { Ban, Check, CircleAlert, Clock, Loader2, RotateCcw, Undo2, X } from "lucide-react";
-import type { PendingActionView, StepPreview } from "@/lib/ai/types";
+import type { PendingActionView, StepPreview, StepDetails } from "@/lib/ai/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -147,6 +147,7 @@ export function ConfirmationCard({
                 <div className={cn("min-w-0", skipped && "text-muted-foreground line-through decoration-muted-foreground/40")}>
                   <Inline text={r?.summary ?? s.summary} />
                   {r?.error && <p className="mt-0.5 text-xs text-destructive">{r.error}</p>}
+                  {s.details && !r && <DetailsTable details={s.details} />}
                 </div>
               </li>
             );
@@ -208,4 +209,37 @@ function StatusBadge({ status, stale, undone }: { status: PendingActionView["sta
     case "expired":
       return <span className="flex items-center gap-1"><Clock className="size-3.5" /> Expired</span>;
   }
+}
+
+/** Scrollable preview of a step's rows (e.g. every company in an import). */
+function DetailsTable({ details }: { details: StepDetails }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      <div className="max-h-64 overflow-auto rounded-lg border bg-card">
+        <table className="w-full text-left text-xs">
+          <thead className="sticky top-0 bg-card text-muted-foreground">
+            <tr>
+              {details.columns.map((c, i) => (
+                <th key={i} className="border-b px-2 py-1.5 font-medium whitespace-nowrap">
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {details.rows.map((row, i) => (
+              <tr key={i} className={cn(row[0] === "Skip" && "text-muted-foreground")}>
+                {row.map((cell, j) => (
+                  <td key={j} className={cn("px-2 py-1 align-top", j <= 1 ? "font-medium whitespace-nowrap" : "max-w-48 truncate")} title={cell}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {details.note && <p className="text-[11px] text-muted-foreground">{details.note}</p>}
+    </div>
+  );
 }

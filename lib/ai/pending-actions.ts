@@ -9,7 +9,7 @@
  *
  * A row is claimed with a conditional update, so it can never run twice.
  */
-import type { PendingActionView, PendingStatus, StepPreview, StepResultView } from "./types";
+import type { PendingActionView, PendingStatus, StepPreview, StepResultView, StepDetails } from "./types";
 
 export const PENDING_TTL_MS = 10 * 60_000;
 
@@ -21,6 +21,8 @@ export type ActionStep = {
   params: Record<string, unknown>;
   /** Snapshot of the entity at proposal time; compared again at confirm to detect drift. */
   fingerprint?: string | null;
+  /** Extra preview shown on the confirmation card. */
+  details?: StepDetails;
 };
 
 export type StepOutcome = { summary?: string; undo?: UndoOp[] };
@@ -265,7 +267,7 @@ export function toView(row: PendingRecord): PendingActionView {
     error: s.error,
     undoable: s.ok && s.undo.length > 0,
   }));
-  const steps: StepPreview[] = row.steps.map((s) => ({ tool: s.tool, summary: s.summary }));
+  const steps: StepPreview[] = row.steps.map((s) => ({ tool: s.tool, summary: s.summary, details: s.details }));
   return {
     id: row.id,
     status: row.status,
