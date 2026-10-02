@@ -26,7 +26,7 @@ export async function loadPanel(userId: string, kind: GroupKind, now = new Date(
       return {
         kind,
         applications: apps,
-        companies: companies.map((c) => ({ id: c.id, name: c.name })),
+        companies: companies.map((c) => ({ id: c.id, name: c.name, tier: c.tier })),
         weekly: { actual: w.sumOf("application"), target: w.targets.applications.min },
       } as const;
     }

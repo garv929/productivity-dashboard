@@ -1,11 +1,12 @@
 import "server-only";
-import { and, asc, eq, ilike, type SQL } from "drizzle-orm";
+import { and, eq, ilike, isNull, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { companies, type Company, type CompanyStatus } from "@/lib/db/schema";
+import { companies, type Company, type CompanyStatus, type CompanyTier } from "@/lib/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { getGroupByKind } from "@/lib/domain/groups";
 import { targetForGroup } from "@/lib/domain/group-mapping";
 import { normalizeDomain } from "@/lib/domain/company-lookup";
+import { compareCompanies } from "@/lib/domain/company-tier";
 import { createTask, listOpenTasks } from "@/lib/todoist";
 import type { ServiceCtx } from "./context";
 
@@ -17,11 +18,17 @@ export const COMPANY_STATUS_LABEL: Record<CompanyStatus, string> = {
   done: "Done",
 };
 
-export async function listCompanies(userId: string, f: { status?: CompanyStatus; name?: string } = {}): Promise<Company[]> {
+/** Sorted Tier 1 → Tier 3 → unrated; within a tier, ready ones first. `tier: "unrated"` finds companies with no tier. */
+export async function listCompanies(
+  userId: string,
+  f: { status?: CompanyStatus; name?: string; tier?: CompanyTier | "unrated" } = {},
+): Promise<Company[]> {
   const where: SQL[] = [eq(companies.userId, userId)];
   if (f.status) where.push(eq(companies.status, f.status));
   if (f.name) where.push(ilike(companies.name, `%${f.name}%`));
-  return db.select().from(companies).where(and(...where)).orderBy(asc(companies.status), asc(companies.name));
+  if (f.tier) where.push(f.tier === "unrated" ? isNull(companies.tier) : eq(companies.tier, f.tier));
+  const rows = await db.select().from(companies).where(and(...where));
+  return rows.sort(compareCompanies);
 }
 
 export async function getCompany(userId: string, id: string): Promise<Company> {
@@ -38,6 +45,7 @@ export type UpsertCompanyInput = {
   why?: string | null;
   rolesOfInterest?: string | null;
   status?: CompanyStatus;
+  tier?: CompanyTier | null;
   notes?: string | null;
 };
 
@@ -46,6 +54,11 @@ export type UpsertCompanyResult = {
   previous: Company | null;
   createdTask: { id: string; content: string; groupName: string } | null;
 };
+
+/** What a pending assistant change to a company was based on; a mismatch at confirm time makes it stale. */
+export function companyFingerprint(c: Pick<Company, "status" | "tier">): string {
+  return `${c.status}:${c.tier ?? "unrated"}`;
+}
 
 /** Title of the to-do auto-created when a company becomes "Ready". */
 export function readyTaskTitle(company: Pick<Company, "name" | "rolesOfInterest">, status: CompanyStatus): string | null {
@@ -65,6 +78,7 @@ export async function upsertCompany(ctx: ServiceCtx, input: UpsertCompanyInput):
       why: input.why,
       rolesOfInterest: input.rolesOfInterest,
       status: input.status,
+      tier: input.tier,
       notes: input.notes,
     }).filter(([, v]) => v !== undefined),
   );

@@ -1,6 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
-import type { ApplicationStage, CompanyStatus, ContactRelationship, FocusStatus, IncomeStatus, IncomeType } from "@/lib/db/schema";
+import type { ApplicationStage, CompanyStatus, CompanyTier, ContactRelationship, FocusStatus, IncomeStatus, IncomeType } from "@/lib/db/schema";
 import {
   completeTask,
   createTask,
@@ -21,7 +21,8 @@ import { localTime } from "@/lib/domain/time";
 import { logActivity, removeActivity } from "@/lib/services/activity";
 import { getApplication, restoreApplication, upsertApplication } from "@/lib/services/applications";
 import { getContact, logTouch, restoreContact, upsertContact, type TouchType } from "@/lib/services/contacts";
-import { getCompany, restoreCompany, upsertCompany } from "@/lib/services/companies";
+import { companyFingerprint, getCompany, restoreCompany, upsertCompany } from "@/lib/services/companies";
+import { tierLabel } from "@/lib/domain/company-tier";
 import { logSideIncomeHours, upsertIncomeOption } from "@/lib/services/income";
 import { listFocusItems, setFocusStatus } from "@/lib/services/focus";
 import { getWeeklyReview, saveWeeklyReview, type ReviewInput } from "@/lib/services/targets";
@@ -84,7 +85,7 @@ export type StepParamMap = {
     notes?: string | null;
   };
   log_touch: { contactId: string; type: TouchType; nextCheckInAt?: string | null; note?: string };
-  upsert_company: { id?: string; name?: string; domain?: string | null; description?: string | null; why?: string | null; rolesOfInterest?: string | null; status?: CompanyStatus; notes?: string | null };
+  upsert_company: { id?: string; name?: string; domain?: string | null; description?: string | null; why?: string | null; rolesOfInterest?: string | null; status?: CompanyStatus; tier?: CompanyTier | null; notes?: string | null };
   upsert_side_income_option: {
     id?: string;
     name?: string;
@@ -338,7 +339,9 @@ export function createStepRunner(ctx: ServiceCtx) {
           await getContact(ctx.userId, (p.id ?? p.contactId) as string);
         } else if (tool === "upsert_company" && p.id) {
           const c = await getCompany(ctx.userId, p.id as string);
-          if (step.fingerprint && step.fingerprint !== c.status) return `${c.name}'s status changed to “${c.status}” in the meantime.`;
+          if (step.fingerprint && step.fingerprint !== companyFingerprint(c)) {
+            return `${c.name} changed in the meantime (now “${c.status}”, ${tierLabel(c.tier)}).`;
+          }
         } else if (tool === "set_focus_item_status") {
           const item = (await listFocusItems(ctx.userId)).find((i) => i.id === p.itemId);
           if (!item) return "That focus item no longer exists.";

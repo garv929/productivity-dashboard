@@ -15,10 +15,10 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
 - **Group pages:** this week's calendar blocks linked to the group (by its calendar-title rule) with their descriptions, planned vs. elapsed hours and a "Now" marker; the task tree for that group (complete, reschedule, skip for today, mark as next, quick add) plus a context panel depending on the group's kind:
   | Kind | Panel |
   |---|---|
-  | `pipeline` | Applications board/table with stages |
+  | `pipeline` | Applications board/table with stages, plus each company's tier badge |
   | `people` | Contacts, follow-up due dates, touch logging |
   | `prep` | Interviews, prep sessions, question bank, STAR stories |
-  | `research` | Companies with name autocomplete that fills in the website, logo and a homepage description; "Ready to apply" creates a linked task in Applications |
+  | `research` | Companies grouped by tier (Tier 1 = most attractive, Tier 2, Tier 3, Unrated) with tier filters and a one-click tier picker; name autocomplete fills in the website, logo and a homepage description; "Ready to apply" creates a linked task in Applications |
   | `options` | Side-income options, hours logged vs. weekly cap |
   | `focus` | Personal-development items, max 2 active |
 - **Scorecard:** Monday–Sunday weekly metrics (in `APP_TIMEZONE`) vs. targets, per-week overrides, chart, and a weekly review form.
@@ -138,7 +138,7 @@ pnpm seed                         # find/create Todoist projects+sections, seed 
 pnpm dev                          # http://localhost:3000
 ```
 
-**Updating an existing install:** after pulling changes that add migrations (for example `0003_company_enrichment`, which adds the company `domain` and `description` columns), run `pnpm db:migrate` locally. On Vercel, the next deploy applies them automatically because `pnpm build` runs `db:migrate` first.
+**Updating an existing install:** after pulling changes that add migrations (for example `0004_company_tier`, which adds the company `tier` column), run `pnpm db:migrate` locally. On Vercel, the next deploy applies them automatically because `pnpm build` runs `db:migrate` first.
 
 Other scripts:
 
