@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/states";
-import { CompanyTierBadge } from "@/components/company-tier-badge";
-import { tierForApplication } from "@/lib/domain/company-tier";
+import { TierDot, TierLegend } from "@/components/company-tier-badge";
+import { TIER_COLOR, tierForApplication } from "@/lib/domain/company-tier";
 import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, useAction, WeeklyCounter } from "./shared";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,6 @@ type Data = Extract<PanelData, { kind: "pipeline" }>;
 
 const STAGES: { value: ApplicationStage; label: string }[] = [
   { value: "researching", label: "Researching" },
-  { value: "tailoring", label: "Tailoring" },
   { value: "applied", label: "Applied" },
   { value: "screen", label: "Screen" },
   { value: "interview", label: "Interview" },
@@ -55,6 +54,12 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
         </div>
         {!readOnly && <ApplicationDialog trigger={<Button size="sm"><Plus /> Add</Button>} companies={data.companies} />}
       </PanelHeader>
+      {data.applications.length > 0 && (
+        <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>Colour = the company&apos;s tier on Company Research:</span>
+          <TierLegend />
+        </p>
+      )}
 
       {data.applications.length === 0 ? (
         <EmptyState title="No applications yet">
@@ -93,12 +98,14 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.applications.map((a) => (
+              {data.applications.map((a) => {
+                const tier = tierForApplication(a, data.companies);
+                return (
                 <tr key={a.id}>
-                  <td className="px-3 py-2 font-medium">
+                  <td className="border-l-[3px] px-3 py-2 font-medium" style={{ borderLeftColor: tier ? TIER_COLOR[tier] : "transparent" }}>
                     <span className="flex items-center gap-2">
+                      {tier && <TierDot tier={tier} />}
                       {a.url ? <a className="hover:underline" href={a.url} target="_blank" rel="noreferrer">{a.companyName}</a> : a.companyName}
-                      <CompanyTierBadge tier={tierForApplication(a, data.companies)} />
                     </span>
                   </td>
                   <td className="px-3 py-2">{a.role}</td>
@@ -111,7 +118,8 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
                   <td className="px-3 py-2 text-muted-foreground">{formatDate(a.nextFollowUpAt)}</td>
                   <td className="max-w-64 truncate px-3 py-2 text-muted-foreground">{a.notes}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -133,13 +141,14 @@ function ApplicationCard({
 }) {
   const [now] = useState(() => Date.now());
   const followUpDue = a.nextFollowUpAt && new Date(a.nextFollowUpAt).getTime() < now;
+  const tier = tierForApplication(a, companies);
   return (
-    <div className="rounded-lg border bg-card p-2.5 text-sm">
+    <div className="rounded-lg border border-l-[3px] bg-card p-2.5 text-sm" style={tier ? { borderLeftColor: TIER_COLOR[tier] } : undefined}>
       <div className="flex items-start gap-1">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            {tier && <TierDot tier={tier} />}
             <p className="truncate font-medium">{a.companyName}</p>
-            <CompanyTierBadge tier={tierForApplication(a, companies)} />
           </div>
           <p className="truncate text-xs text-muted-foreground">{a.role}</p>
         </div>

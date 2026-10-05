@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/states";
 import { CompanyTierBadge } from "@/components/company-tier-badge";
-import { COMPANY_TIERS, TIER_LABEL, tierLabel, UNRATED_LABEL, type Tier } from "@/lib/domain/company-tier";
+import { COMPANY_TIERS, TIER_COLOR, TIER_LABEL, tierLabel, UNRATED_LABEL, type Tier } from "@/lib/domain/company-tier";
 import { Field, FormDialog, NativeSelect, PanelHeader, str, useAction } from "./shared";
 import { cn } from "@/lib/utils";
 
@@ -155,7 +155,7 @@ function CompanyCard({
   onTier: (c: Company, t: Tier | null) => void;
 }) {
   return (
-    <li className="flex flex-col rounded-xl border bg-card p-3">
+    <li className="flex flex-col rounded-xl border border-l-[3px] bg-card p-3" style={c.tier ? { borderLeftColor: TIER_COLOR[c.tier] } : undefined}>
       <div className="flex items-start gap-2">
         <CompanyLogo name={c.name} domain={c.domain} />
         <div className="min-w-0 flex-1">

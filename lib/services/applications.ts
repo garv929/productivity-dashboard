@@ -6,11 +6,10 @@ import { NotFoundError } from "@/lib/errors";
 import { logActivity } from "./activity";
 import { nowOf, type ServiceCtx } from "./context";
 
-export const STAGES: ApplicationStage[] = ["researching", "tailoring", "applied", "screen", "interview", "offer", "closed"];
+export const STAGES: ApplicationStage[] = ["researching", "applied", "screen", "interview", "offer", "closed"];
 
 export const STAGE_LABEL: Record<ApplicationStage, string> = {
   researching: "Researching",
-  tailoring: "Tailoring",
   applied: "Applied",
   screen: "Screen",
   interview: "Interview",
