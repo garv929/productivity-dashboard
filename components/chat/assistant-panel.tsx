@@ -169,7 +169,7 @@ function Thread({ sessionId, initialMessages, groups }: { sessionId: string; ini
     [],
   );
 
-  const { messages, sendMessage, status, error, stop, clearError } = useChat({
+  const { messages, sendMessage, regenerate, status, error, stop, clearError } = useChat({
     id: sessionId,
     messages: initialMessages,
     transport,
@@ -199,6 +199,14 @@ function Thread({ sessionId, initialMessages, groups }: { sessionId: string; ini
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages, status]);
+
+  // A turn that ended (server timeout, dropped connection) while a tool call was still in flight.
+  const last = messages[messages.length - 1];
+  const cutOff =
+    !busy &&
+    !error &&
+    last?.role === "assistant" &&
+    (last.parts as ToolPartLike[]).some((p) => p.type.startsWith("tool-") && (p.state === "input-streaming" || p.state === "input-available"));
 
   const groupName = (slug: unknown) => (typeof slug === "string" ? groups.find((g) => g.slug === slug)?.name : undefined);
   const currentGroup = groupName(page.groupSlug);
@@ -231,6 +239,15 @@ function Thread({ sessionId, initialMessages, groups }: { sessionId: string; ini
                 onFollowUp={send}
               />
             ))}
+            {cutOff && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 font-sans text-sm">
+                <TriangleAlert className="size-4 shrink-0 text-warning" />
+                <p className="flex-1">This reply was cut off before it finished. Nothing was changed.</p>
+                <Button size="sm" variant="outline" onClick={() => void regenerate({ body: { page } })}>
+                  Try again
+                </Button>
+              </div>
+            )}
             {status === "submitted" && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-3.5 animate-spin" /> Thinking…
@@ -311,7 +328,7 @@ function MessageView({
             </div>
           );
         }
-        if (part.type.startsWith("tool-")) return <ToolLine key={i} part={part as ToolPartLike} groupName={groupName} />;
+        if (part.type.startsWith("tool-")) return <ToolLine key={i} part={part as ToolPartLike} groupName={groupName} streaming={streaming} />;
         return null;
       })}
       {streaming && message.parts.every((p) => p.type !== "text") && (
@@ -334,17 +351,20 @@ function toolLabel(name: string, input: Record<string, unknown> | undefined, gro
   return TOOL_STATUS[name] ?? name.replace(/_/g, " ");
 }
 
-function ToolLine({ part, groupName }: { part: ToolPartLike; groupName: (slug: unknown) => string | undefined }) {
+function ToolLine({ part, groupName, streaming }: { part: ToolPartLike; groupName: (slug: unknown) => string | undefined; streaming: boolean }) {
   const name = part.type.slice(5);
   const label = toolLabel(name, part.input, groupName);
-  const running = part.state === "input-streaming" || part.state === "input-available";
+  const pending = part.state === "input-streaming" || part.state === "input-available";
+  // Only spin while the reply is still streaming; a pending step in a finished reply was interrupted.
+  const running = pending && streaming;
+  const interrupted = pending && !streaming;
   const out = part.output as { error?: string } | undefined;
   const failed = part.state === "output-error" || Boolean(out && typeof out === "object" && "error" in out && out.error);
   return (
     <div className="flex items-center gap-1.5 font-sans text-xs text-muted-foreground">
       {running ? (
         <Loader2 className="size-3 animate-spin" />
-      ) : failed ? (
+      ) : failed || interrupted ? (
         <TriangleAlert className="size-3 text-warning" />
       ) : (
         <Check className="size-3 text-muted-foreground/70" />
@@ -352,6 +372,7 @@ function ToolLine({ part, groupName }: { part: ToolPartLike; groupName: (slug: u
       <span>
         {label}
         {running ? "…" : ""}
+        {interrupted ? " (didn't finish)" : ""}
       </span>
     </div>
   );
