@@ -7,6 +7,7 @@ import { getGroupByKind } from "@/lib/domain/groups";
 import { targetForGroup } from "@/lib/domain/group-mapping";
 import { normalizeDomain } from "@/lib/domain/company-lookup";
 import { compareCompanies } from "@/lib/domain/company-tier";
+import { companyKey } from "@/lib/domain/company-import";
 import { createTask, listOpenTasks } from "@/lib/todoist";
 import type { ServiceCtx } from "./context";
 
@@ -29,6 +30,17 @@ export async function listCompanies(
   if (f.tier) where.push(f.tier === "unrated" ? isNull(companies.tier) : eq(companies.tier, f.tier));
   const rows = await db.select().from(companies).where(and(...where));
   return rows.sort(compareCompanies);
+}
+
+/**
+ * The company with this name, matched like imports and the Applications board do
+ * ("Ramp, Inc." finds "Ramp"); an exact case-insensitive match wins over a looser one.
+ */
+export async function findCompanyByName(userId: string, name: string): Promise<Company | null> {
+  const rows = await db.select().from(companies).where(eq(companies.userId, userId));
+  const exact = name.trim().toLowerCase();
+  const key = companyKey(name);
+  return rows.find((c) => c.name.trim().toLowerCase() === exact) ?? (key ? rows.find((c) => companyKey(c.name) === key) : undefined) ?? null;
 }
 
 export async function getCompany(userId: string, id: string): Promise<Company> {

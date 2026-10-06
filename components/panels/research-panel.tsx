@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/states";
 import { CompanyTierBadge } from "@/components/company-tier-badge";
 import { COMPANY_TIERS, TIER_COLOR, TIER_LABEL, tierLabel, UNRATED_LABEL, type Tier } from "@/lib/domain/company-tier";
-import { Field, FormDialog, NativeSelect, PanelHeader, str, useAction } from "./shared";
+import { Field, FormDialog, NativeSelect, PanelHeader, str, TierSelect, useAction } from "./shared";
 import { cn } from "@/lib/utils";
 
 type Data = Extract<PanelData, { kind: "research" }>;
@@ -197,23 +197,6 @@ function CompanyCard({
         </div>
       )}
     </li>
-  );
-}
-
-/** "" in the select stands for unrated. */
-function TierSelect({
-  value,
-  onChange,
-  ...props
-}: Omit<React.ComponentProps<"select">, "value" | "onChange"> & { value?: Tier | null; onChange?: (t: Tier | null) => void }) {
-  return (
-    <NativeSelect
-      {...(onChange ? { value: value ?? "", onChange: (e) => onChange((e.target.value || null) as Tier | null) } : { defaultValue: value ?? "" })}
-      {...props}
-    >
-      <option value="">{UNRATED_LABEL}</option>
-      {COMPANY_TIERS.map((t) => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}
-    </NativeSelect>
   );
 }
 
