@@ -13,8 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/states";
 import { CompanyTierBadge } from "@/components/company-tier-badge";
-import { tierForApplication } from "@/lib/domain/company-tier";
-import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, useAction, WeeklyCounter } from "./shared";
+import { tierForApplication, type Tier } from "@/lib/domain/company-tier";
+import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, TierSelect, useAction, WeeklyCounter } from "./shared";
 import { cn } from "@/lib/utils";
 
 type Data = Extract<PanelData, { kind: "pipeline" }>;
@@ -175,6 +175,7 @@ function ApplicationCard({
 }
 
 function ApplicationDialog({ trigger, application: a, companies }: { trigger: React.ReactNode; application?: Application; companies: Data["companies"] }) {
+  const knownTier = a ? tierForApplication(a, companies) : null;
   return (
     <FormDialog
       trigger={trigger}
@@ -190,6 +191,7 @@ function ApplicationDialog({ trigger, application: a, companies }: { trigger: Re
               stage: (str(f, "stage") as ApplicationStage) ?? "researching",
               nextFollowUpAt: dateInputToIso(str(f, "nextFollowUpAt")),
               notes: str(f, "notes") ?? null,
+              tier: str(f, "tier") as Tier | undefined,
             }),
           );
           toast.success(a ? "Application updated" : "Application added");
@@ -199,15 +201,10 @@ function ApplicationDialog({ trigger, application: a, companies }: { trigger: Re
         }
       }}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Company">
-          <Input name="companyName" required defaultValue={a?.companyName} list="company-names" />
-          <datalist id="company-names">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-        </Field>
-        <Field label="Role">
-          <Input name="role" required defaultValue={a?.role} />
-        </Field>
-      </div>
+      <CompanyAndTier application={a} companies={companies} initialTier={knownTier} />
+      <Field label="Role">
+        <Input name="role" required defaultValue={a?.role} />
+      </Field>
       <Field label="Link">
         <Input name="url" type="url" defaultValue={a?.url ?? ""} placeholder="https://…" />
       </Field>
@@ -225,5 +222,41 @@ function ApplicationDialog({ trigger, application: a, companies }: { trigger: Re
         <Textarea name="notes" rows={3} defaultValue={a?.notes ?? ""} />
       </Field>
     </FormDialog>
+  );
+}
+
+/** Company name plus its required tier; picking a company that already has a tier fills it in. */
+function CompanyAndTier({ application: a, companies, initialTier }: { application?: Application; companies: Data["companies"]; initialTier: Tier | null }) {
+  const [tier, setTier] = useState<Tier | null>(initialTier);
+  const [touched, setTouched] = useState(false);
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Company">
+        <Input
+          name="companyName"
+          required
+          defaultValue={a?.companyName}
+          list="company-names"
+          onChange={(e) => {
+            if (touched) return;
+            const match = tierForApplication({ companyId: null, companyName: e.target.value }, companies);
+            setTier(match);
+          }}
+        />
+        <datalist id="company-names">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+      </Field>
+      <Field label="Tier" hint="Shared by all applications to this company.">
+        <TierSelect
+          name="tier"
+          required
+          placeholder="Pick a tier"
+          value={tier}
+          onChange={(t) => {
+            setTouched(true);
+            setTier(t);
+          }}
+        />
+      </Field>
+    </div>
   );
 }

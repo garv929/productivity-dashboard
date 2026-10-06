@@ -2,7 +2,7 @@ import "server-only";
 import { tool } from "ai";
 import { z } from "zod";
 import { applicationStage, companyStatus, companyTier, contactRelationship, focusStatus, incomeStatus, incomeType } from "@/lib/db/schema";
-import { getApplication, STAGE_LABEL } from "@/lib/services/applications";
+import { companyForApplication, getApplication, STAGE_LABEL } from "@/lib/services/applications";
 import { getContact } from "@/lib/services/contacts";
 import { companyFingerprint, getCompany, readyTaskTitle } from "@/lib/services/companies";
 import { tierLabel } from "@/lib/domain/company-tier";
@@ -27,7 +27,7 @@ export function recordWriteTools(tc: ToolCtx) {
   return {
     upsert_application: tool({
       description:
-        "PROPOSE creating an application (needs companyName + role) or updating one by id: stage, link, follow-up date, notes (requires confirmation). Moving to Applied logs an application for the scorecard. Search first so you don't create duplicates.",
+        "PROPOSE creating an application (needs companyName + role + the company's tier) or updating one by id: stage, link, follow-up date, notes, tier (requires confirmation). Moving to Applied logs an application for the scorecard. The tier belongs to the company: setting it re-tiers that company, or adds it to Company Research if it isn't there yet. Search first so you don't create duplicates.",
       inputSchema: z.object({
         id: z.uuid().optional(),
         companyName: z.string().trim().min(1).max(120).optional(),
@@ -36,9 +36,27 @@ export function recordWriteTools(tc: ToolCtx) {
         stage: z.enum(applicationStage.enumValues).optional(),
         nextFollowUpDate: z.string().regex(isoDate).nullish(),
         notes: z.string().max(4000).optional(),
+        tier: z
+          .enum(companyTier.enumValues)
+          .optional()
+          .describe("The company's tier as the user stated it. Omit to keep the company's current tier; never guess."),
       }),
       execute: (input) =>
         proposeSteps(tc, async () => {
+          const prevApp = input.id ? await getApplication(tc.userId, input.id) : null;
+          const companyName = input.companyName ?? prevApp?.companyName;
+          const renamed = prevApp && input.companyName !== undefined && input.companyName !== prevApp.companyName;
+          const company = companyName
+            ? await companyForApplication(tc.userId, { companyId: renamed ? null : prevApp?.companyId, companyName })
+            : null;
+          const tier = input.tier ?? (prevApp ? undefined : (company?.tier ?? undefined));
+          /** Describes what happens to the company's tier, e.g. "(sets Ramp to Tier 1)". */
+          const tierNote = () => {
+            if (!tier || !companyName) return "";
+            if (!company) return ` (adds ${b(companyName)} to Company Research at ${b(tierLabel(tier))})`;
+            if (company.tier !== tier) return ` (sets ${b(company.name)} to ${b(tierLabel(tier))}, was ${tierLabel(company.tier)})`;
+            return "";
+          };
           const params = {
             id: input.id,
             companyName: input.companyName,
@@ -47,9 +65,10 @@ export function recordWriteTools(tc: ToolCtx) {
             stage: input.stage,
             nextFollowUpAt: at9(input.nextFollowUpDate),
             notes: input.notes,
+            tier,
           };
-          if (input.id) {
-            const a = await getApplication(tc.userId, input.id);
+          if (prevApp) {
+            const a = prevApp;
             const label = `${input.companyName ?? a.companyName} – ${input.role ?? a.role}`;
             const parts: string[] = [];
             if (input.stage && input.stage !== a.stage) parts.push(`move ${b(label)} to ${b(STAGE_LABEL[input.stage])}${input.stage === "applied" ? " (logs 1 application this week)" : ""}`);
@@ -57,16 +76,22 @@ export function recordWriteTools(tc: ToolCtx) {
             if (input.url) parts.push("save the posting link");
             if (input.notes !== undefined) parts.push("update notes");
             if (input.companyName || input.role) parts.push("rename it");
+            if (tier && tier !== company?.tier) parts.push(`set tier to ${b(tierLabel(tier))}`);
             if (parts.length === 0) return { error: "Nothing to change on that application." };
-            const summary = parts[0].startsWith("move") ? parts.join(", ") : `Update ${b(label)}: ${parts.join(", ")}`;
+            const summary = (parts[0].startsWith("move") ? parts.join(", ") : `Update ${b(label)}: ${parts.join(", ")}`) + tierNote();
             return [makeStep("upsert_application", summary.charAt(0).toUpperCase() + summary.slice(1), params, a.stage)];
           }
           if (!input.companyName || !input.role) return { error: "A new application needs companyName and role." };
+          if (!tier) {
+            return {
+              error: `A new application needs a tier, and ${input.companyName} has none yet. Ask the user whether it's Tier 1, 2 or 3; don't guess. Nothing was proposed.`,
+            };
+          }
           const stage = input.stage ?? "researching";
           return [
             makeStep(
               "upsert_application",
-              `Add application ${b(`${input.companyName} – ${input.role}`)} at ${b(STAGE_LABEL[stage])}${stage === "applied" ? " (logs 1 application this week)" : ""}${input.nextFollowUpDate ? `, follow-up ${fmtDay(input.nextFollowUpDate)}` : ""}`,
+              `Add application ${b(`${input.companyName} – ${input.role}`)} (${b(tierLabel(tier))}) at ${b(STAGE_LABEL[stage])}${stage === "applied" ? " (logs 1 application this week)" : ""}${input.nextFollowUpDate ? `, follow-up ${fmtDay(input.nextFollowUpDate)}` : ""}${tierNote()}`,
               { ...params, stage },
             ),
           ];

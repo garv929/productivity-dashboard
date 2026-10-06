@@ -15,7 +15,7 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
 - **Group pages:** this week's calendar blocks linked to the group (by its calendar-title rule) with their descriptions, planned vs. elapsed hours and a "Now" marker; the task tree for that group (complete, reschedule, skip for today, mark as next, quick add) plus a context panel depending on the group's kind:
   | Kind | Panel |
   |---|---|
-  | `pipeline` | Applications board/table with stages, plus each company's tier badge |
+  | `pipeline` | Applications board/table with stages and each company's tier badge. A tier is required to add an application; it's stored on the company (shared by all its applications), and a company that isn't in Company Research yet is added there |
   | `people` | Contacts, follow-up due dates, touch logging |
   | `prep` | Interviews, prep sessions, question bank, STAR stories |
   | `research` | Companies grouped by tier (Tier 1 = most attractive, Tier 2, Tier 3, Unrated) with tier filters and a one-click tier picker; name autocomplete fills in the website, logo and a homepage description; bulk import from any spreadsheet or document via the assistant (CSV template on the page) and "Fill missing details"; "Ready to apply" creates a linked task in Applications |

@@ -5,6 +5,7 @@ import { applicationStage, companyStatus, companyTier, incomeStatus } from "@/li
 import { listApplications } from "@/lib/services/applications";
 import { listContacts } from "@/lib/services/contacts";
 import { listCompanies } from "@/lib/services/companies";
+import { tierForApplication } from "@/lib/domain/company-tier";
 import { describeCompany, suggestCompanies } from "@/lib/services/company-lookup";
 import { listInterviews, listQuestions, listStories } from "@/lib/services/prep";
 import { listIncomeOptions, sideIncomeHoursThisWeek } from "@/lib/services/income";
@@ -32,16 +33,17 @@ export function recordReadTools(tc: ToolCtx) {
       }),
       execute: async (f) => {
         try {
-          const rows = await listApplications(tc.userId, {
+          const [rows, companies] = await Promise.all([listApplications(tc.userId, {
             stage: f.stage,
             company: f.company,
             appliedFrom: f.appliedFrom ? dayRange(f.appliedFrom, tz).start : undefined,
             appliedTo: f.appliedTo ? dayRange(f.appliedTo, tz).end : undefined,
-          });
+          }), listCompanies(tc.userId)]);
           return untrusted(
             rows.map((a) => ({
               id: a.id,
               company: a.companyName,
+              tier: tierForApplication(a, companies) ?? "unrated",
               role: a.role,
               stage: a.stage,
               url: a.url,

@@ -1,9 +1,10 @@
 import "server-only";
 import { and, asc, desc, eq, gte, ilike, lte, or, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { applications, type Application, type ApplicationStage } from "@/lib/db/schema";
-import { NotFoundError } from "@/lib/errors";
+import { applications, type Application, type ApplicationStage, type Company, type CompanyTier } from "@/lib/db/schema";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { logActivity } from "./activity";
+import { findCompanyByName, getCompany, upsertCompany, type UpsertCompanyResult } from "./companies";
 import { nowOf, type ServiceCtx } from "./context";
 
 export const STAGES: ApplicationStage[] = ["researching", "tailoring", "applied", "screen", "interview", "offer", "closed"];
@@ -62,17 +63,71 @@ export type UpsertApplicationInput = {
   notes?: string | null;
   companyId?: string | null;
   todoistTaskId?: string | null;
+  /** The company's tier. Required for a new application; on an update it re-tiers the company. */
+  tier?: CompanyTier;
 };
 
 export type UpsertApplicationResult = {
   application: Application;
   previous: Application | null;
   activityId: string | null;
+  /** Set when the company was created or re-tiered, so the change can be undone. */
+  companyChange: UpsertCompanyResult | null;
 };
+
+/** The company an application belongs to: its linked company, else one with the same name. */
+export async function companyForApplication(
+  userId: string,
+  app: { companyId?: string | null; companyName: string },
+): Promise<Company | null> {
+  if (app.companyId) {
+    try {
+      return await getCompany(userId, app.companyId);
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err;
+    }
+  }
+  return findCompanyByName(userId, app.companyName);
+}
+
+/**
+ * Tier lives on the company (one tier per company, shared by all its applications).
+ * Re-tiers the matching company, or adds it to Company Research (status Done: you're
+ * already in its pipeline) when there isn't one yet. Returns the company to link to.
+ */
+async function applyTier(ctx: ServiceCtx, existing: Company | null, companyName: string, tier: CompanyTier) {
+  if (existing && existing.tier === tier) return { company: existing, change: null };
+  const change = existing
+    ? await upsertCompany(ctx, { id: existing.id, tier })
+    : await upsertCompany(ctx, { name: companyName, tier, status: "done", notes: "Added from the application pipeline." });
+  return { company: change.company, change };
+}
 
 /** Create or update; moving into Applied stamps `applied_at` and logs an `application` activity. */
 export async function upsertApplication(ctx: ServiceCtx, input: UpsertApplicationInput): Promise<UpsertApplicationResult> {
   const previous = input.id ? await getApplication(ctx.userId, input.id) : null;
+  if (!previous && (!input.companyName || !input.role)) throw new ValidationError("A new application needs a company and a role.");
+  if (!previous && !input.tier) throw new ValidationError("A new application needs a tier (Tier 1, 2 or 3).");
+
+  // Resolve the company (and its tier) before writing the application so it gets linked.
+  let companyChange: UpsertCompanyResult | null = null;
+  let companyId = input.companyId;
+  const companyName = input.companyName ?? previous!.companyName;
+  const renamed = previous !== null && input.companyName !== undefined && input.companyName !== previous.companyName;
+  if (input.tier || renamed || (companyId === undefined && !previous?.companyId)) {
+    // A renamed application is matched by its new name, not the company it was linked to.
+    let company = await companyForApplication(ctx.userId, {
+      companyId: companyId ?? (renamed ? null : previous?.companyId),
+      companyName,
+    });
+    if (input.tier) {
+      const res = await applyTier(ctx, company, companyName, input.tier);
+      company = res.company;
+      companyChange = res.change;
+    }
+    if (companyId === undefined && (company?.id ?? null) !== (previous?.companyId ?? null)) companyId = company?.id ?? null;
+  }
+
   const becomingApplied = input.stage === "applied" && previous?.stage !== "applied";
   const values = {
     ...(input.companyName !== undefined && { companyName: input.companyName }),
@@ -81,7 +136,7 @@ export async function upsertApplication(ctx: ServiceCtx, input: UpsertApplicatio
     ...(input.stage !== undefined && { stage: input.stage }),
     ...(input.nextFollowUpAt !== undefined && { nextFollowUpAt: input.nextFollowUpAt }),
     ...(input.notes !== undefined && { notes: input.notes }),
-    ...(input.companyId !== undefined && { companyId: input.companyId }),
+    ...(companyId !== undefined && { companyId }),
     ...(input.todoistTaskId !== undefined && { todoistTaskId: input.todoistTaskId }),
     ...(input.appliedAt !== undefined
       ? { appliedAt: input.appliedAt }
@@ -91,17 +146,18 @@ export async function upsertApplication(ctx: ServiceCtx, input: UpsertApplicatio
   };
 
   let application: Application;
-  if (previous) {
+  if (previous && Object.keys(values).length === 0) {
+    application = previous; // e.g. only the company's tier changed
+  } else if (previous) {
     [application] = await db
       .update(applications)
       .set(values)
       .where(and(eq(applications.userId, ctx.userId), eq(applications.id, previous.id)))
       .returning();
   } else {
-    if (!input.companyName || !input.role) throw new NotFoundError("A new application needs a company and a role.");
     [application] = await db
       .insert(applications)
-      .values({ userId: ctx.userId, companyName: input.companyName, role: input.role, ...values })
+      .values({ userId: ctx.userId, companyName: input.companyName!, role: input.role!, ...values })
       .returning();
   }
 
@@ -115,7 +171,7 @@ export async function upsertApplication(ctx: ServiceCtx, input: UpsertApplicatio
     });
     activityId = act.id;
   }
-  return { application, previous, activityId };
+  return { application, previous, activityId, companyChange };
 }
 
 /** Undo helper: restore a previous snapshot, or remove a row created in the same operation. */
