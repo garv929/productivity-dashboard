@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, ilike, isNull, type SQL } from "drizzle-orm";
+import { and, eq, ilike, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, type Company, type CompanyStatus, type CompanyTier } from "@/lib/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -29,6 +29,16 @@ export async function listCompanies(
   if (f.tier) where.push(f.tier === "unrated" ? isNull(companies.tier) : eq(companies.tier, f.tier));
   const rows = await db.select().from(companies).where(and(...where));
   return rows.sort(compareCompanies);
+}
+
+/** Case-insensitive exact name match (the same rule the Applications board uses for tier badges). */
+export async function findCompanyByName(userId: string, name: string): Promise<Company | null> {
+  const [row] = await db
+    .select()
+    .from(companies)
+    .where(and(eq(companies.userId, userId), sql`lower(trim(${companies.name})) = ${name.trim().toLowerCase()}`))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getCompany(userId: string, id: string): Promise<Company> {

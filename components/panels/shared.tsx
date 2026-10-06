@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { COMPANY_TIERS, TIER_LABEL, UNRATED_LABEL, type Tier } from "@/lib/domain/company-tier";
 
 export function PanelHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
@@ -73,6 +74,31 @@ export function NativeSelect({ className, ...props }: React.ComponentProps<"sele
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * Company tier picker. "" stands for no tier: shown as "Unrated", or as `placeholder`
+ * (e.g. "Pick a tier") which, with `required`, makes the form insist on a tier.
+ */
+export function TierSelect({
+  value,
+  onChange,
+  placeholder,
+  ...props
+}: Omit<React.ComponentProps<"select">, "value" | "onChange"> & {
+  value?: Tier | null;
+  onChange?: (t: Tier | null) => void;
+  placeholder?: string;
+}) {
+  return (
+    <NativeSelect
+      {...(onChange ? { value: value ?? "", onChange: (e) => onChange((e.target.value || null) as Tier | null) } : { defaultValue: value ?? "" })}
+      {...props}
+    >
+      <option value="" disabled={Boolean(placeholder)}>{placeholder ?? UNRATED_LABEL}</option>
+      {COMPANY_TIERS.map((t) => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}
+    </NativeSelect>
   );
 }
 
