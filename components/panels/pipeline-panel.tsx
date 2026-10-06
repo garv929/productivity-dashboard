@@ -12,16 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/states";
-import { CompanyTierBadge } from "@/components/company-tier-badge";
-import { tierForApplication } from "@/lib/domain/company-tier";
-import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, useAction, WeeklyCounter } from "./shared";
+import { TierDot, TierLegend } from "@/components/company-tier-badge";
+import { TIER_COLOR, tierForApplication, type Tier } from "@/lib/domain/company-tier";
+import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, TierSelect, useAction, WeeklyCounter } from "./shared";
 import { cn } from "@/lib/utils";
 
 type Data = Extract<PanelData, { kind: "pipeline" }>;
 
 const STAGES: { value: ApplicationStage; label: string }[] = [
   { value: "researching", label: "Researching" },
-  { value: "tailoring", label: "Tailoring" },
   { value: "applied", label: "Applied" },
   { value: "screen", label: "Screen" },
   { value: "interview", label: "Interview" },
@@ -55,6 +54,12 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
         </div>
         {!readOnly && <ApplicationDialog trigger={<Button size="sm"><Plus /> Add</Button>} companies={data.companies} />}
       </PanelHeader>
+      {data.applications.length > 0 && (
+        <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>Colour = the company&apos;s tier on Company Research:</span>
+          <TierLegend />
+        </p>
+      )}
 
       {data.applications.length === 0 ? (
         <EmptyState title="No applications yet">
@@ -93,12 +98,14 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.applications.map((a) => (
+              {data.applications.map((a) => {
+                const tier = tierForApplication(a, data.companies);
+                return (
                 <tr key={a.id}>
-                  <td className="px-3 py-2 font-medium">
+                  <td className="border-l-[3px] px-3 py-2 font-medium" style={{ borderLeftColor: tier ? TIER_COLOR[tier] : "transparent" }}>
                     <span className="flex items-center gap-2">
+                      {tier && <TierDot tier={tier} />}
                       {a.url ? <a className="hover:underline" href={a.url} target="_blank" rel="noreferrer">{a.companyName}</a> : a.companyName}
-                      <CompanyTierBadge tier={tierForApplication(a, data.companies)} />
                     </span>
                   </td>
                   <td className="px-3 py-2">{a.role}</td>
@@ -111,7 +118,8 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
                   <td className="px-3 py-2 text-muted-foreground">{formatDate(a.nextFollowUpAt)}</td>
                   <td className="max-w-64 truncate px-3 py-2 text-muted-foreground">{a.notes}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -133,13 +141,14 @@ function ApplicationCard({
 }) {
   const [now] = useState(() => Date.now());
   const followUpDue = a.nextFollowUpAt && new Date(a.nextFollowUpAt).getTime() < now;
+  const tier = tierForApplication(a, companies);
   return (
-    <div className="rounded-lg border bg-card p-2.5 text-sm">
+    <div className="rounded-lg border border-l-[3px] bg-card p-2.5 text-sm" style={tier ? { borderLeftColor: TIER_COLOR[tier] } : undefined}>
       <div className="flex items-start gap-1">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            {tier && <TierDot tier={tier} />}
             <p className="truncate font-medium">{a.companyName}</p>
-            <CompanyTierBadge tier={tierForApplication(a, companies)} />
           </div>
           <p className="truncate text-xs text-muted-foreground">{a.role}</p>
         </div>
@@ -175,6 +184,7 @@ function ApplicationCard({
 }
 
 function ApplicationDialog({ trigger, application: a, companies }: { trigger: React.ReactNode; application?: Application; companies: Data["companies"] }) {
+  const knownTier = a ? tierForApplication(a, companies) : null;
   return (
     <FormDialog
       trigger={trigger}
@@ -190,6 +200,7 @@ function ApplicationDialog({ trigger, application: a, companies }: { trigger: Re
               stage: (str(f, "stage") as ApplicationStage) ?? "researching",
               nextFollowUpAt: dateInputToIso(str(f, "nextFollowUpAt")),
               notes: str(f, "notes") ?? null,
+              tier: str(f, "tier") as Tier | undefined,
             }),
           );
           toast.success(a ? "Application updated" : "Application added");
@@ -199,15 +210,10 @@ function ApplicationDialog({ trigger, application: a, companies }: { trigger: Re
         }
       }}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Company">
-          <Input name="companyName" required defaultValue={a?.companyName} list="company-names" />
-          <datalist id="company-names">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-        </Field>
-        <Field label="Role">
-          <Input name="role" required defaultValue={a?.role} />
-        </Field>
-      </div>
+      <CompanyAndTier application={a} companies={companies} initialTier={knownTier} />
+      <Field label="Role">
+        <Input name="role" required defaultValue={a?.role} />
+      </Field>
       <Field label="Link">
         <Input name="url" type="url" defaultValue={a?.url ?? ""} placeholder="https://…" />
       </Field>
@@ -225,5 +231,41 @@ function ApplicationDialog({ trigger, application: a, companies }: { trigger: Re
         <Textarea name="notes" rows={3} defaultValue={a?.notes ?? ""} />
       </Field>
     </FormDialog>
+  );
+}
+
+/** Company name plus its required tier; picking a company that already has a tier fills it in. */
+function CompanyAndTier({ application: a, companies, initialTier }: { application?: Application; companies: Data["companies"]; initialTier: Tier | null }) {
+  const [tier, setTier] = useState<Tier | null>(initialTier);
+  const [touched, setTouched] = useState(false);
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Company">
+        <Input
+          name="companyName"
+          required
+          defaultValue={a?.companyName}
+          list="company-names"
+          onChange={(e) => {
+            if (touched) return;
+            const match = tierForApplication({ companyId: null, companyName: e.target.value }, companies);
+            setTier(match);
+          }}
+        />
+        <datalist id="company-names">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+      </Field>
+      <Field label="Tier" hint="Shared by all applications to this company.">
+        <TierSelect
+          name="tier"
+          required
+          placeholder="Pick a tier"
+          value={tier}
+          onChange={(t) => {
+            setTouched(true);
+            setTier(t);
+          }}
+        />
+      </Field>
+    </div>
   );
 }

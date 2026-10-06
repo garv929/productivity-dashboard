@@ -23,7 +23,7 @@ export type MetricDef = {
 export const DEFAULT_SIDE_INCOME_CAP = 4.5;
 
 export const METRICS: MetricDef[] = [
-  { key: "applications", label: "Tailored applications", activity: "application", unit: "count", defaultMin: 8, defaultMax: null, groupKind: "pipeline" },
+  { key: "applications", label: "Applications", activity: "application", unit: "count", defaultMin: 8, defaultMax: null, groupKind: "pipeline" },
   { key: "outreach", label: "Outreach messages", activity: "outreach", unit: "count", defaultMin: 10, defaultMax: null, groupKind: "people" },
   { key: "follow_ups", label: "Follow-ups", activity: "follow_up", unit: "count", defaultMin: 3, defaultMax: 5, groupKind: "people" },
   { key: "prep_sessions", label: "Interview-prep sessions", activity: "prep_session", unit: "count", defaultMin: 2, defaultMax: null, groupKind: "prep" },

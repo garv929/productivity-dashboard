@@ -45,6 +45,7 @@ const applicationSchema = z.object({
   stage: z.enum(applicationStage.enumValues).optional(),
   nextFollowUpAt: optDate.optional(),
   notes: optText.optional(),
+  tier: z.enum(companyTier.enumValues).optional(),
 });
 
 export async function saveApplicationAction(input: z.input<typeof applicationSchema>) {

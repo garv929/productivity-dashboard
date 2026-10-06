@@ -77,6 +77,7 @@ export type StepParamMap = {
     stage?: ApplicationStage;
     nextFollowUpAt?: string | null;
     notes?: string | null;
+    tier?: CompanyTier;
   };
   upsert_contact: {
     id?: string;
@@ -216,6 +217,10 @@ export function createStepRunner(ctx: ServiceCtx) {
           { kind: "restore_application", snapshot: res.previous, createdId: res.previous ? undefined : res.application.id },
         ];
         if (res.activityId) undo.push({ kind: "remove_activity", activityId: res.activityId });
+        if (res.companyChange) {
+          const c = res.companyChange;
+          undo.push({ kind: "restore_company", snapshot: c.previous, createdId: c.previous ? undefined : c.company.id });
+        }
         return { undo };
       }
       case "upsert_contact": {

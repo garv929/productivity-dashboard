@@ -90,7 +90,6 @@ export const groupKind = pgEnum("group_kind", [
 
 export const applicationStage = pgEnum("application_stage", [
   "researching",
-  "tailoring",
   "applied",
   "screen",
   "interview",
