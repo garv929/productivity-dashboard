@@ -3,7 +3,7 @@ import { requireOwnerPage } from "@/lib/auth-guard";
 import { getGroupPageData } from "@/lib/services/dashboard";
 import { loadPanel } from "@/lib/services/panels";
 import { GroupView } from "@/components/group/group-view";
-import { ContextPanel } from "@/components/panels/context-panel";
+import { ContextPanel, ContextPanelTop } from "@/components/panels/context-panel";
 import { ErrorState } from "@/components/states";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,10 @@ export default async function GroupPage({ params }: { params: Promise<{ slug: st
   if (!data) notFound();
   const panel = await loadPanel(owner.userId, data.group.kind);
   return (
-    <GroupView initial={data}>
+    <GroupView
+      initial={data}
+      top={panel.kind === "prep" ? <ContextPanelTop data={panel} readOnly={data.group.archived} groupColor={data.group.color} /> : undefined}
+    >
       <ContextPanel data={panel} readOnly={data.group.archived} groupColor={data.group.color} />
     </GroupView>
   );
