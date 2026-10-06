@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, ilike, isNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, ilike, isNull, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, type Company, type CompanyStatus, type CompanyTier } from "@/lib/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -7,6 +7,7 @@ import { getGroupByKind } from "@/lib/domain/groups";
 import { targetForGroup } from "@/lib/domain/group-mapping";
 import { normalizeDomain } from "@/lib/domain/company-lookup";
 import { compareCompanies } from "@/lib/domain/company-tier";
+import { companyKey } from "@/lib/domain/company-import";
 import { createTask, listOpenTasks } from "@/lib/todoist";
 import type { ServiceCtx } from "./context";
 
@@ -31,14 +32,15 @@ export async function listCompanies(
   return rows.sort(compareCompanies);
 }
 
-/** Case-insensitive exact name match (the same rule the Applications board uses for tier badges). */
+/**
+ * The company with this name, matched like imports and the Applications board do
+ * ("Ramp, Inc." finds "Ramp"); an exact case-insensitive match wins over a looser one.
+ */
 export async function findCompanyByName(userId: string, name: string): Promise<Company | null> {
-  const [row] = await db
-    .select()
-    .from(companies)
-    .where(and(eq(companies.userId, userId), sql`lower(trim(${companies.name})) = ${name.trim().toLowerCase()}`))
-    .limit(1);
-  return row ?? null;
+  const rows = await db.select().from(companies).where(eq(companies.userId, userId));
+  const exact = name.trim().toLowerCase();
+  const key = companyKey(name);
+  return rows.find((c) => c.name.trim().toLowerCase() === exact) ?? (key ? rows.find((c) => companyKey(c.name) === key) : undefined) ?? null;
 }
 
 export async function getCompany(userId: string, id: string): Promise<Company> {
