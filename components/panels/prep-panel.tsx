@@ -27,65 +27,71 @@ const STORY_KINDS: { value: StoryKind; label: string }[] = [
   { value: "followups", label: "Follow-up Q&A" },
 ];
 
-export function PrepPanel({ data, readOnly, color }: { data: Data; readOnly: boolean; color: string }) {
-  const { run, pending } = useAction();
+/** Question bank and stories; upcoming interviews render separately at the top of the page. */
+export function PrepPanel({ data, readOnly }: { data: Data; readOnly: boolean }) {
   return (
     <div className="space-y-8">
-      <div>
-        <PanelHeader title="Upcoming interviews">
-          <WeeklyCounter label="prep sessions" actual={data.weekly.actual} min={data.weekly.target} color={color} />
-          {!readOnly && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() =>
-                run(async () => {
-                  try {
-                    unwrap(await logPrepSessionAction());
-                    toast.success("Prep session logged");
-                  } catch {}
-                })
-              }
-            >
-              <Dumbbell /> Log prep session
-            </Button>
-          )}
-          {!readOnly && <InterviewDialog applications={data.applications} trigger={<Button size="sm"><CalendarPlus /> Add</Button>} />}
-        </PanelHeader>
-        {data.interviews.length === 0 ? (
-          <EmptyState title="No interviews scheduled">
-            Add one, or tell the assistant “I have an Anthropic screen Thursday at 2pm.”
-          </EmptyState>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {data.interviews.map((iv) => (
-              <li key={iv.id} className="rounded-xl border bg-card p-3">
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{iv.companyName ?? "Interview"}{iv.role ? ` – ${iv.role}` : ""}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {relativeDays(iv.scheduledAt)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{[iv.stage, iv.interviewer].filter(Boolean).join(" · ")}</p>
-                  </div>
-                  {!readOnly && (
-                    <InterviewDialog
-                      interview={iv}
-                      applications={data.applications}
-                      trigger={<Button variant="ghost" size="icon-sm" aria-label="Edit interview"><Pencil /></Button>}
-                    />
-                  )}
-                </div>
-                {iv.prepNotes && <p className="mt-2 text-sm whitespace-pre-line">{iv.prepNotes}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
       <QuestionBank data={data} readOnly={readOnly} />
       <Stories data={data} readOnly={readOnly} />
+    </div>
+  );
+}
+
+/** Shown first on the Interview Prep page: the next interviews, soonest first. */
+export function UpcomingInterviews({ data, readOnly, color }: { data: Data; readOnly: boolean; color: string }) {
+  const { run, pending } = useAction();
+  return (
+    <div>
+      <PanelHeader title="Upcoming interviews">
+        <WeeklyCounter label="prep sessions" actual={data.weekly.actual} min={data.weekly.target} color={color} />
+        {!readOnly && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              run(async () => {
+                try {
+                  unwrap(await logPrepSessionAction());
+                  toast.success("Prep session logged");
+                } catch {}
+              })
+            }
+          >
+            <Dumbbell /> Log prep session
+          </Button>
+        )}
+        {!readOnly && <InterviewDialog applications={data.applications} trigger={<Button size="sm"><CalendarPlus /> Add</Button>} />}
+      </PanelHeader>
+      {data.interviews.length === 0 ? (
+        <EmptyState title="No interviews scheduled">
+          Add one, or tell the assistant “I have an Anthropic screen Thursday at 2pm.”
+        </EmptyState>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {data.interviews.map((iv) => (
+            <li key={iv.id} className="rounded-xl border bg-card p-3">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{iv.companyName ?? "Interview"}{iv.role ? ` – ${iv.role}` : ""}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {relativeDays(iv.scheduledAt)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{[iv.stage, iv.interviewer].filter(Boolean).join(" · ")}</p>
+                </div>
+                {!readOnly && (
+                  <InterviewDialog
+                    interview={iv}
+                    applications={data.applications}
+                    trigger={<Button variant="ghost" size="icon-sm" aria-label="Edit interview"><Pencil /></Button>}
+                  />
+                )}
+              </div>
+              {iv.prepNotes && <p className="mt-2 text-sm whitespace-pre-line">{iv.prepNotes}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

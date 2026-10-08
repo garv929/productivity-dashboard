@@ -91,7 +91,8 @@ function patchTask(d: GroupPageData, id: string, patch: Partial<TaskLite>): Grou
 
 /* ------------------------------------------------------------------ view */
 
-export function GroupView({ initial, children }: { initial: GroupPageData; children: React.ReactNode }) {
+/** `top` renders right under the page header (e.g. upcoming interviews); `children` is the context panel at the bottom. */
+export function GroupView({ initial, top, children }: { initial: GroupPageData; top?: React.ReactNode; children: React.ReactNode }) {
   const key = `/api/todoist/tasks?group=${encodeURIComponent(initial.group.slug)}`;
   const { data, mutate } = useSWR<GroupPageData>(key, { fallbackData: initial });
   const d = data ?? initial;
@@ -202,6 +203,8 @@ export function GroupView({ initial, children }: { initial: GroupPageData; child
           <code className="rounded bg-muted px-1">pnpm seed</code>.
         </EmptyState>
       )}
+
+      {top && <section aria-label="Highlights">{top}</section>}
 
       <NextStepCard data={d} ops={ops} readOnly={readOnly} />
 

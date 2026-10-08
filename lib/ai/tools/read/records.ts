@@ -24,7 +24,7 @@ export function recordReadTools(tc: ToolCtx) {
   return {
     get_applications: tool({
       description:
-        "Application pipeline rows. Filter by stage, company/role text, or applied date range. `daysSinceApplied` helps find Applied 7+ days with no follow-up.",
+        "Application pipeline rows. Filter by stage, company/role text, or applied date range. `daysSinceApplied` helps find Applied 7+ days with no follow-up; `daysSinceUpdate` shows which ones haven't been touched (any edit, stage change or note) in a while.",
       inputSchema: z.object({
         stage: z.enum(applicationStage.enumValues).optional(),
         company: z.string().optional(),
@@ -50,6 +50,8 @@ export function recordReadTools(tc: ToolCtx) {
               appliedOn: day(a.appliedAt, tz),
               daysSinceApplied: daysSince(a.appliedAt),
               nextFollowUp: day(a.nextFollowUpAt, tz),
+              lastUpdated: day(a.updatedAt, tz),
+              daysSinceUpdate: daysSince(a.updatedAt),
               notes: a.notes?.slice(0, 400) ?? null,
             })),
           );

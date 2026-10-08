@@ -19,6 +19,18 @@ import { cn } from "@/lib/utils";
 
 type Data = Extract<PanelData, { kind: "pipeline" }>;
 
+/** Most recently updated first, so applications you just touched rise to the top and stale ones sink. */
+const byLastUpdated = (a: Application, b: Application) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+
+/** "Last updated: Oct 5 · 2d ago" */
+function LastUpdated({ at, className }: { at: Date | string; className?: string }) {
+  return (
+    <p className={cn("text-[11px] text-muted-foreground/80", className)} title={new Date(at).toLocaleString("en-US")}>
+      Last updated: {formatDate(at)} · {relativeDays(at)}
+    </p>
+  );
+}
+
 const STAGES: { value: ApplicationStage; label: string }[] = [
   { value: "researching", label: "Researching" },
   { value: "applied", label: "Applied" },
@@ -31,6 +43,7 @@ const STAGES: { value: ApplicationStage; label: string }[] = [
 export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly: boolean; color: string }) {
   const [view, setView] = useState<"board" | "table">("board");
   const { run, pending } = useAction();
+  const applications = [...data.applications].sort(byLastUpdated);
 
   const changeStage = (a: Application, stage: ApplicationStage) =>
     run(async () => {
@@ -68,7 +81,7 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
       ) : view === "board" ? (
         <div className={cn("-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0", pending && "opacity-70")}>
           {STAGES.map((s) => {
-            const items = data.applications.filter((a) => a.stage === s.value);
+            const items = applications.filter((a) => a.stage === s.value);
             return (
               <div key={s.value} className="w-64 shrink-0 rounded-xl bg-surface p-2">
                 <div className="mb-2 flex items-center justify-between px-1 text-xs font-medium text-muted-foreground">
@@ -95,10 +108,11 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
                 <th className="px-3 py-2 font-medium">Applied</th>
                 <th className="px-3 py-2 font-medium">Follow-up</th>
                 <th className="px-3 py-2 font-medium">Notes</th>
+                <th className="px-3 py-2 font-medium whitespace-nowrap">Last updated ↓</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.applications.map((a) => {
+              {applications.map((a) => {
                 const tier = tierForApplication(a, data.companies);
                 return (
                 <tr key={a.id}>
@@ -117,6 +131,9 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
                   <td className="px-3 py-2 text-muted-foreground">{formatDate(a.appliedAt)}</td>
                   <td className="px-3 py-2 text-muted-foreground">{formatDate(a.nextFollowUpAt)}</td>
                   <td className="max-w-64 truncate px-3 py-2 text-muted-foreground">{a.notes}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground" title={new Date(a.updatedAt).toLocaleString("en-US")}>
+                    {formatDate(a.updatedAt)} · {relativeDays(a.updatedAt)}
+                  </td>
                 </tr>
                 );
               })}
@@ -174,6 +191,7 @@ function ApplicationCard({
         {a.nextFollowUpAt && <p className={cn(followUpDue && "text-destructive")}>Follow up {formatDate(a.nextFollowUpAt)}</p>}
         {a.notes && <p className="line-clamp-2">{a.notes}</p>}
       </div>
+      <LastUpdated at={a.updatedAt} className="mt-1.5" />
       {!readOnly && (
         <NativeSelect value={a.stage} onChange={(e) => onStage(a, e.target.value as ApplicationStage)} className="mt-2 h-7 text-xs" aria-label="Stage">
           {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
