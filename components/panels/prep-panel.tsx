@@ -4,10 +4,21 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { CalendarPlus, Dumbbell, Eye, Pencil, Plus } from "lucide-react";
+import { CalendarPlus, Dumbbell, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import type { PanelData } from "@/lib/services/panels";
 import type { StoryKind } from "@/lib/db/schema";
-import { addQuestionAction, logPrepSessionAction, saveInterviewAction, saveStoryAction, setPracticedAction } from "@/app/actions/records";
+import { addQuestionAction, deleteInterviewAction, logPrepSessionAction, saveInterviewAction, saveStoryAction, setPracticedAction } from "@/app/actions/records";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { unwrap } from "@/lib/client/fetcher";
 import { formatDate, relativeDays, toDatetimeLocal } from "@/lib/client/format";
 import { Button } from "@/components/ui/button";
@@ -77,7 +88,7 @@ export function UpcomingInterviews({ data, readOnly, color }: { data: Data; read
                 <th className="px-3 py-2 font-medium">Date ↑</th>
                 <th className="hidden px-3 py-2 font-medium md:table-cell">Stage</th>
                 <th className="hidden px-3 py-2 font-medium lg:table-cell">Notes</th>
-                {!readOnly && <th className="w-10 px-2 py-2"><span className="sr-only">Edit</span></th>}
+                {!readOnly && <th className="w-20 px-2 py-2"><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -96,12 +107,13 @@ export function UpcomingInterviews({ data, readOnly, color }: { data: Data; read
                     <p className="line-clamp-2 whitespace-pre-line" title={iv.prepNotes ?? undefined}>{iv.prepNotes || "—"}</p>
                   </td>
                   {!readOnly && (
-                    <td className="px-2 py-1.5 text-right">
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
                       <InterviewDialog
                         interview={iv}
                         applications={data.applications}
                         trigger={<Button variant="ghost" size="icon-sm" aria-label={`Edit interview${iv.companyName ? ` with ${iv.companyName}` : ""}`}><Pencil /></Button>}
                       />
+                      <DeleteInterviewButton interview={iv} />
                     </td>
                   )}
                 </tr>
@@ -228,6 +240,46 @@ function StoryEditor({ kind, label, initial, readOnly }: { kind: StoryKind; labe
         <p className="text-sm text-muted-foreground italic">No {label.toLowerCase()} version yet. Click Edit to write it.</p>
       )}
     </div>
+  );
+}
+
+/** Trash icon with an "are you sure?" step; deleting can't be undone. */
+function DeleteInterviewButton({ interview: iv }: { interview: Data["interviews"][number] }) {
+  const { run, pending } = useAction();
+  const label = [iv.companyName, iv.role].filter(Boolean).join(" – ") || "this interview";
+  const when = formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="icon-sm" disabled={pending} aria-label={`Delete interview${iv.companyName ? ` with ${iv.companyName}` : ""}`} className="text-muted-foreground hover:text-destructive">
+          <Trash2 />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="font-serif">Delete this interview?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {label} on {when} will be removed, along with its prep notes. This can&apos;t be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() =>
+              run(async () => {
+                try {
+                  unwrap(await deleteInterviewAction(iv.id));
+                  toast.success("Interview deleted");
+                } catch {}
+              })
+            }
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

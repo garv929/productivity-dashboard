@@ -17,7 +17,7 @@ import { upsertApplication } from "@/lib/services/applications";
 import { logTouch, upsertContact } from "@/lib/services/contacts";
 import { upsertCompany } from "@/lib/services/companies";
 import { enrichCompanies } from "@/lib/services/company-import";
-import { addQuestion, logPrepSession, saveStory, setPracticed, upsertInterview } from "@/lib/services/prep";
+import { addQuestion, deleteInterview, logPrepSession, saveStory, setPracticed, upsertInterview } from "@/lib/services/prep";
 import { logSideIncomeHours, upsertIncomeOption } from "@/lib/services/income";
 import { setFocusStatus, upsertFocusItem } from "@/lib/services/focus";
 import { clearWeekOverrides, saveWeeklyReview, setTarget } from "@/lib/services/targets";
@@ -146,6 +146,14 @@ export async function saveInterviewAction(input: {
       })
       .parse(input);
     await upsertInterview(ctx, data);
+    refresh();
+    return null;
+  });
+}
+
+export async function deleteInterviewAction(id: string) {
+  return run(async (ctx) => {
+    await deleteInterview(ctx, uuid.parse(id));
     refresh();
     return null;
   });

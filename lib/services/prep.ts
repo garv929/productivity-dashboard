@@ -92,6 +92,14 @@ export async function restoreInterview(userId: string, snapshot: Interview | nul
   }
 }
 
+export async function deleteInterview(ctx: ServiceCtx, id: string): Promise<void> {
+  const rows = await db
+    .delete(interviews)
+    .where(and(eq(interviews.userId, ctx.userId), eq(interviews.id, id)))
+    .returning({ id: interviews.id });
+  if (!rows.length) throw new NotFoundError("Interview not found.");
+}
+
 export async function upsertInterview(ctx: ServiceCtx, input: UpsertInterviewInput): Promise<Interview> {
   const values = Object.fromEntries(Object.entries(input).filter(([k, v]) => k !== "id" && v !== undefined));
   if (input.id) {
