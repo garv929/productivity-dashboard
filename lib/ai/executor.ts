@@ -26,6 +26,7 @@ import { companyFingerprint, getCompany, restoreCompany, upsertCompany } from "@
 import { tierLabel } from "@/lib/domain/company-tier";
 import type { ImportRow } from "@/lib/domain/company-import";
 import { applyImport, enrichCompanies } from "@/lib/services/company-import";
+import { getInterview, resolveInterviewApplication, restoreInterview, upsertInterview } from "@/lib/services/prep";
 import { logSideIncomeHours, upsertIncomeOption } from "@/lib/services/income";
 import { listFocusItems, setFocusStatus } from "@/lib/services/focus";
 import { getWeeklyReview, saveWeeklyReview, type ReviewInput } from "@/lib/services/targets";
@@ -89,6 +90,17 @@ export type StepParamMap = {
     notes?: string | null;
   };
   log_touch: { contactId: string; type: TouchType; nextCheckInAt?: string | null; note?: string };
+  /** The application is resolved when the step runs, so one created earlier in the same action is found. */
+  upsert_interview: {
+    id?: string;
+    applicationId?: string;
+    companyName?: string;
+    role?: string;
+    scheduledAt?: string;
+    stage?: string | null;
+    interviewer?: string | null;
+    prepNotes?: string | null;
+  };
   upsert_company: { id?: string; name?: string; domain?: string | null; description?: string | null; why?: string | null; rolesOfInterest?: string | null; status?: CompanyStatus; tier?: CompanyTier | null; notes?: string | null };
   import_companies: { rows: ImportRow[]; sourceName?: string };
   upsert_side_income_option: {
@@ -222,6 +234,22 @@ export function createStepRunner(ctx: ServiceCtx) {
           undo.push({ kind: "restore_company", snapshot: c.previous, createdId: c.previous ? undefined : c.company.id });
         }
         return { undo };
+      }
+      case "upsert_interview": {
+        const { companyName, role, applicationId, scheduledAt, ...rest } = step.params as StepParamMap["upsert_interview"];
+        let linkTo: string | undefined;
+        if (applicationId || companyName) {
+          const found = await resolveInterviewApplication(ctx.userId, { applicationId, companyName, role });
+          if ("error" in found) throw new ValidationError(found.error);
+          linkTo = found.application.id;
+        }
+        const previous = rest.id ? await getInterview(ctx.userId, rest.id) : null;
+        const iv = await upsertInterview(ctx, {
+          ...rest,
+          ...(linkTo && { applicationId: linkTo }),
+          ...(scheduledAt && { scheduledAt: new Date(scheduledAt) }),
+        });
+        return { undo: [{ kind: "restore_interview", snapshot: previous, createdId: previous ? undefined : iv.id }] };
       }
       case "upsert_contact": {
         const p = step.params as StepParamMap["upsert_contact"];
@@ -365,6 +393,9 @@ export function createStepRunner(ctx: ServiceCtx) {
         } else if (tool === "upsert_application" && p.id) {
           const a = await getApplication(ctx.userId, p.id as string);
           if (step.fingerprint && step.fingerprint !== a.stage) return `${a.companyName} – ${a.role} moved to “${a.stage}” in the meantime.`;
+        } else if (tool === "upsert_interview" && p.id) {
+          const iv = await getInterview(ctx.userId, p.id as string);
+          if (step.fingerprint && step.fingerprint !== iv.scheduledAt.toISOString()) return "That interview was rescheduled in the meantime.";
         } else if ((tool === "upsert_contact" && p.id) || tool === "log_touch") {
           await getContact(ctx.userId, (p.id ?? p.contactId) as string);
         } else if (tool === "upsert_company" && p.id) {
@@ -410,6 +441,8 @@ export function createStepRunner(ctx: ServiceCtx) {
         return removeActivity(ctx.userId, op.activityId as string);
       case "restore_application":
         return restoreApplication(ctx.userId, op.snapshot ? revive(op.snapshot as never) : null, op.createdId as string | undefined);
+      case "restore_interview":
+        return restoreInterview(ctx.userId, op.snapshot ? revive(op.snapshot as never) : null, op.createdId as string | undefined);
       case "restore_contact":
         return restoreContact(ctx.userId, op.snapshot ? revive(op.snapshot as never) : null, op.createdId as string | undefined);
       case "restore_company":

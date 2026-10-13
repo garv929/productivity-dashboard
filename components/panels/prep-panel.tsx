@@ -4,10 +4,21 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { CalendarPlus, Dumbbell, Eye, Pencil, Plus } from "lucide-react";
+import { CalendarPlus, Dumbbell, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import type { PanelData } from "@/lib/services/panels";
 import type { StoryKind } from "@/lib/db/schema";
-import { addQuestionAction, logPrepSessionAction, saveInterviewAction, saveStoryAction, setPracticedAction } from "@/app/actions/records";
+import { addQuestionAction, deleteInterviewAction, logPrepSessionAction, saveInterviewAction, saveStoryAction, setPracticedAction } from "@/app/actions/records";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { unwrap } from "@/lib/client/fetcher";
 import { formatDate, relativeDays, toDatetimeLocal } from "@/lib/client/format";
 import { Button } from "@/components/ui/button";
@@ -68,29 +79,48 @@ export function UpcomingInterviews({ data, readOnly, color }: { data: Data; read
           Add one, or tell the assistant “I have an Anthropic screen Thursday at 2pm.”
         </EmptyState>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {data.interviews.map((iv) => (
-            <li key={iv.id} className="rounded-xl border bg-card p-3">
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{iv.companyName ?? "Interview"}{iv.role ? ` – ${iv.role}` : ""}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {relativeDays(iv.scheduledAt)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{[iv.stage, iv.interviewer].filter(Boolean).join(" · ")}</p>
-                </div>
-                {!readOnly && (
-                  <InterviewDialog
-                    interview={iv}
-                    applications={data.applications}
-                    trigger={<Button variant="ghost" size="icon-sm" aria-label="Edit interview"><Pencil /></Button>}
-                  />
-                )}
-              </div>
-              {iv.prepNotes && <p className="mt-2 text-sm whitespace-pre-line">{iv.prepNotes}</p>}
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <table className="w-full text-sm">
+            <thead className="border-b text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Company</th>
+                <th className="px-3 py-2 font-medium">Role</th>
+                <th className="px-3 py-2 font-medium">Date ↑</th>
+                <th className="hidden px-3 py-2 font-medium md:table-cell">Stage</th>
+                <th className="hidden px-3 py-2 font-medium lg:table-cell">Notes</th>
+                {!readOnly && <th className="w-20 px-2 py-2"><span className="sr-only">Actions</span></th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.interviews.map((iv) => (
+                <tr key={iv.id} className="align-top">
+                  <td className="px-3 py-2 font-medium">{iv.companyName ?? <span className="text-muted-foreground">—</span>}</td>
+                  <td className="px-3 py-2">{iv.role ?? <span className="text-muted-foreground">—</span>}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    <span className="text-muted-foreground"> · {relativeDays(iv.scheduledAt)}</span>
+                  </td>
+                  <td className="hidden px-3 py-2 text-muted-foreground md:table-cell">
+                    {[iv.stage, iv.interviewer].filter(Boolean).join(" · ") || "—"}
+                  </td>
+                  <td className="hidden max-w-72 px-3 py-2 text-muted-foreground lg:table-cell">
+                    <p className="line-clamp-2 whitespace-pre-line" title={iv.prepNotes ?? undefined}>{iv.prepNotes || "—"}</p>
+                  </td>
+                  {!readOnly && (
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <InterviewDialog
+                        interview={iv}
+                        applications={data.applications}
+                        trigger={<Button variant="ghost" size="icon-sm" aria-label={`Edit interview${iv.companyName ? ` with ${iv.companyName}` : ""}`}><Pencil /></Button>}
+                      />
+                      <DeleteInterviewButton interview={iv} />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -210,6 +240,46 @@ function StoryEditor({ kind, label, initial, readOnly }: { kind: StoryKind; labe
         <p className="text-sm text-muted-foreground italic">No {label.toLowerCase()} version yet. Click Edit to write it.</p>
       )}
     </div>
+  );
+}
+
+/** Trash icon with an "are you sure?" step; deleting can't be undone. */
+function DeleteInterviewButton({ interview: iv }: { interview: Data["interviews"][number] }) {
+  const { run, pending } = useAction();
+  const label = [iv.companyName, iv.role].filter(Boolean).join(" – ") || "this interview";
+  const when = formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="icon-sm" disabled={pending} aria-label={`Delete interview${iv.companyName ? ` with ${iv.companyName}` : ""}`} className="text-muted-foreground hover:text-destructive">
+          <Trash2 />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="font-serif">Delete this interview?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {label} on {when} will be removed, along with its prep notes. This can&apos;t be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() =>
+              run(async () => {
+                try {
+                  unwrap(await deleteInterviewAction(iv.id));
+                  toast.success("Interview deleted");
+                } catch {}
+              })
+            }
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
