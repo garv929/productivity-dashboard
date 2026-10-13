@@ -11,9 +11,10 @@ import { previewImport } from "@/lib/services/company-import";
 import { sideIncomeHoursThisWeek, listIncomeOptions } from "@/lib/services/income";
 import { FOCUS_ACTIVE_LIMIT, listFocusItems } from "@/lib/services/focus";
 import { getGroupByKind } from "@/lib/domain/groups";
-import { dayRange, mondayOf, weekRange } from "@/lib/domain/time";
+import { dayRange, formatLocal, localDateTimeToInstant, mondayOf, weekRange } from "@/lib/domain/time";
+import { getInterview, resolveInterviewApplication } from "@/lib/services/prep";
 import { makeStep } from "@/lib/ai/executor";
-import { fmtDay, isoDate, serviceCtx, type ToolCtx } from "../context";
+import { fmtDay, hhmm, isoDate, serviceCtx, type ToolCtx } from "../context";
 import { proposeSteps } from "./propose";
 
 const b = (s: string) => `**${s}**`;
@@ -206,6 +207,60 @@ export function recordWriteTools(tc: ToolCtx) {
               },
             },
           ];
+        }),
+    }),
+
+    upsert_interview: tool({
+      description:
+        "PROPOSE adding an upcoming interview (needs date + time and the company, plus the role if they have several applications) or updating one by id (requires confirmation). It's linked to the matching application. If there's no application for that company yet, propose upsert_application first in this same turn (it needs a tier); the interview links to it on confirm.",
+      inputSchema: z.object({
+        id: z.uuid().optional().describe("Existing interview to update (from get_interviews_and_prep)"),
+        applicationId: z.uuid().optional(),
+        companyName: z.string().trim().min(1).max(120).optional(),
+        role: z.string().trim().max(160).optional().describe("Only needed when the company has several applications"),
+        date: z.string().regex(isoDate).optional().describe("YYYY-MM-DD, local"),
+        time: z.string().regex(hhmm).optional().describe("HH:mm 24h, local"),
+        stage: z.string().trim().max(120).optional().describe("e.g. Recruiter screen, Hiring manager, Onsite"),
+        interviewer: z.string().trim().max(200).optional(),
+        prepNotes: z.string().max(4000).optional(),
+      }),
+      execute: (input) =>
+        proposeSteps(tc, async () => {
+          const prev = input.id ? await getInterview(tc.userId, input.id) : null;
+          if (!prev && (!input.date || !input.time)) return { error: "A new interview needs a date and a time. Ask the user for whichever is missing." };
+          if (prev && Boolean(input.date) !== Boolean(input.time)) return { error: "To move an interview, give both date and time." };
+          const when = input.date && input.time ? localDateTimeToInstant(input.date, input.time, tc.tz) : null;
+
+          // Name the application on the card. It's resolved again on confirm, so one being added
+          // earlier in this same action is found then even though it doesn't exist yet.
+          let label = input.companyName ? `${input.companyName}${input.role ? ` – ${input.role}` : ""}` : "the interview";
+          if (input.applicationId || input.companyName) {
+            const found = await resolveInterviewApplication(tc.userId, input);
+            if ("application" in found) label = `${found.application.companyName} – ${found.application.role}`;
+            else if (!input.companyName || !/no application for/i.test(found.error)) return { error: found.error };
+          } else if (prev?.applicationId) {
+            const found = await resolveInterviewApplication(tc.userId, { applicationId: prev.applicationId });
+            if ("application" in found) label = `${found.application.companyName} – ${found.application.role}`;
+          } else if (!prev) {
+            return { error: "Say which company the interview is for." };
+          }
+
+          const at = when ? formatLocal(when, tc.tz, "EEE MMM d, h:mm a") : null;
+          const extras = [input.stage, input.interviewer && `with ${input.interviewer}`].filter(Boolean).join(", ");
+          const summary = prev
+            ? `Update interview ${b(label)}${at ? `: move to ${b(at)}` : ""}${extras ? ` (${extras})` : ""}`
+            : `Add interview ${b(label)} on ${b(at!)}${extras ? ` (${extras})` : ""}`;
+          const params = {
+            id: input.id,
+            applicationId: input.applicationId,
+            companyName: input.companyName,
+            role: input.role,
+            scheduledAt: when?.toISOString(),
+            stage: input.stage,
+            interviewer: input.interviewer,
+            prepNotes: input.prepNotes,
+          };
+          return [makeStep("upsert_interview", summary, params, prev ? prev.scheduledAt.toISOString() : null)];
         }),
     }),
 

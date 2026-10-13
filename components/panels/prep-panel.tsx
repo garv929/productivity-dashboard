@@ -68,29 +68,47 @@ export function UpcomingInterviews({ data, readOnly, color }: { data: Data; read
           Add one, or tell the assistant “I have an Anthropic screen Thursday at 2pm.”
         </EmptyState>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {data.interviews.map((iv) => (
-            <li key={iv.id} className="rounded-xl border bg-card p-3">
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{iv.companyName ?? "Interview"}{iv.role ? ` – ${iv.role}` : ""}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {relativeDays(iv.scheduledAt)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{[iv.stage, iv.interviewer].filter(Boolean).join(" · ")}</p>
-                </div>
-                {!readOnly && (
-                  <InterviewDialog
-                    interview={iv}
-                    applications={data.applications}
-                    trigger={<Button variant="ghost" size="icon-sm" aria-label="Edit interview"><Pencil /></Button>}
-                  />
-                )}
-              </div>
-              {iv.prepNotes && <p className="mt-2 text-sm whitespace-pre-line">{iv.prepNotes}</p>}
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <table className="w-full text-sm">
+            <thead className="border-b text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Company</th>
+                <th className="px-3 py-2 font-medium">Role</th>
+                <th className="px-3 py-2 font-medium">Date ↑</th>
+                <th className="hidden px-3 py-2 font-medium md:table-cell">Stage</th>
+                <th className="hidden px-3 py-2 font-medium lg:table-cell">Notes</th>
+                {!readOnly && <th className="w-10 px-2 py-2"><span className="sr-only">Edit</span></th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.interviews.map((iv) => (
+                <tr key={iv.id} className="align-top">
+                  <td className="px-3 py-2 font-medium">{iv.companyName ?? <span className="text-muted-foreground">—</span>}</td>
+                  <td className="px-3 py-2">{iv.role ?? <span className="text-muted-foreground">—</span>}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {formatDate(iv.scheduledAt, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    <span className="text-muted-foreground"> · {relativeDays(iv.scheduledAt)}</span>
+                  </td>
+                  <td className="hidden px-3 py-2 text-muted-foreground md:table-cell">
+                    {[iv.stage, iv.interviewer].filter(Boolean).join(" · ") || "—"}
+                  </td>
+                  <td className="hidden max-w-72 px-3 py-2 text-muted-foreground lg:table-cell">
+                    <p className="line-clamp-2 whitespace-pre-line" title={iv.prepNotes ?? undefined}>{iv.prepNotes || "—"}</p>
+                  </td>
+                  {!readOnly && (
+                    <td className="px-2 py-1.5 text-right">
+                      <InterviewDialog
+                        interview={iv}
+                        applications={data.applications}
+                        trigger={<Button variant="ghost" size="icon-sm" aria-label={`Edit interview${iv.companyName ? ` with ${iv.companyName}` : ""}`}><Pencil /></Button>}
+                      />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

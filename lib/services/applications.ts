@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, ilike, lte, or, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { applications, type Application, type ApplicationStage, type Company, type CompanyTier } from "@/lib/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { companyKey } from "@/lib/domain/company-import";
 import { logActivity } from "./activity";
 import { findCompanyByName, getCompany, upsertCompany, type UpsertCompanyResult } from "./companies";
 import { nowOf, type ServiceCtx } from "./context";
@@ -73,6 +74,18 @@ export type UpsertApplicationResult = {
   /** Set when the company was created or re-tiered, so the change can be undone. */
   companyChange: UpsertCompanyResult | null;
 };
+
+/**
+ * Applications for a company (matched like imports: "Ramp, Inc." = "Ramp"), most recently
+ * updated first. With `role`, only those whose role contains it (case-insensitive).
+ */
+export async function findApplicationsForCompany(userId: string, companyName: string, role?: string | null): Promise<Application[]> {
+  const key = companyKey(companyName);
+  const r = role?.trim().toLowerCase();
+  return (await db.select().from(applications).where(eq(applications.userId, userId)))
+    .filter((a) => companyKey(a.companyName) === key && (!r || a.role.toLowerCase().includes(r)))
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+}
 
 /** The company an application belongs to: its linked company, else one with the same name. */
 export async function companyForApplication(
