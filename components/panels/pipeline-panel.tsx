@@ -16,11 +16,10 @@ import { TierDot, TierLegend } from "@/components/company-tier-badge";
 import { TIER_COLOR, tierForApplication, type Tier } from "@/lib/domain/company-tier";
 import { dateInputToIso, Field, FormDialog, NativeSelect, PanelHeader, str, TierSelect, useAction, WeeklyCounter } from "./shared";
 import { cn } from "@/lib/utils";
+import { compareApplications } from "@/lib/domain/application-order";
 
 type Data = Extract<PanelData, { kind: "pipeline" }>;
 
-/** Most recently updated first, so applications you just touched rise to the top and stale ones sink. */
-const byLastUpdated = (a: Application, b: Application) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 
 /** "Last updated: Oct 5 · 2d ago" */
 function LastUpdated({ at, className }: { at: Date | string; className?: string }) {
@@ -43,7 +42,8 @@ const STAGES: { value: ApplicationStage; label: string }[] = [
 export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly: boolean; color: string }) {
   const [view, setView] = useState<"board" | "table">("board");
   const { run, pending } = useAction();
-  const applications = [...data.applications].sort(byLastUpdated);
+  // Follow-ups first (nearest first), then the rest by last updated, oldest first.
+  const applications = [...data.applications].sort(compareApplications);
 
   const changeStage = (a: Application, stage: ApplicationStage) =>
     run(async () => {
@@ -106,9 +106,9 @@ export function PipelinePanel({ data, readOnly, color }: { data: Data; readOnly:
                 <th className="px-3 py-2 font-medium">Role</th>
                 <th className="px-3 py-2 font-medium">Stage</th>
                 <th className="px-3 py-2 font-medium">Applied</th>
-                <th className="px-3 py-2 font-medium">Follow-up</th>
+                <th className="px-3 py-2 font-medium whitespace-nowrap">Follow-up ↑</th>
                 <th className="px-3 py-2 font-medium">Notes</th>
-                <th className="px-3 py-2 font-medium whitespace-nowrap">Last updated ↓</th>
+                <th className="px-3 py-2 font-medium whitespace-nowrap">Last updated ↑</th>
               </tr>
             </thead>
             <tbody className="divide-y">
