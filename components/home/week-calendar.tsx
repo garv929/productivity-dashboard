@@ -12,6 +12,7 @@ import { completeTaskAction } from "@/app/actions/tasks";
 import { unwrap } from "@/lib/client/fetcher";
 import { formatTime } from "@/lib/client/format";
 import { EventPopover } from "@/components/calendar/event-details";
+import { InterviewTimeline } from "./interview-timeline";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -81,98 +82,101 @@ export function WeekCalendar() {
   );
 
   return (
-    <section aria-labelledby="calendar-heading" className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <h2 id="calendar-heading" className="font-sans text-sm font-medium">
-          Calendar
-        </h2>
-        {data && <span className="text-sm text-muted-foreground">{rangeLabel(data.weekStart, data.weekEnd)}</span>}
-        <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" onClick={() => go(-1)} disabled={!data} aria-label="Previous week">
-            <ChevronLeft />
-          </Button>
-          <Button variant="outline" size="sm" className="h-7" onClick={() => go(null)} disabled={isCurrentWeek}>
-            Today
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => go(1)} disabled={!data} aria-label="Next week">
-            <ChevronRight />
-          </Button>
+    <div className="space-y-3">
+      {data && <InterviewTimeline agenda={data} cols={COLS_7} />}
+      <section aria-labelledby="calendar-heading" className="overflow-hidden rounded-xl border bg-card">
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+          <h2 id="calendar-heading" className="font-sans text-sm font-medium">
+            Calendar
+          </h2>
+          {data && <span className="text-sm text-muted-foreground">{rangeLabel(data.weekStart, data.weekEnd)}</span>}
+          <div className="ml-auto flex items-center gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={() => go(-1)} disabled={!data} aria-label="Previous week">
+              <ChevronLeft />
+            </Button>
+            <Button variant="outline" size="sm" className="h-7" onClick={() => go(null)} disabled={isCurrentWeek}>
+              Today
+            </Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => go(1)} disabled={!data} aria-label="Next week">
+              <ChevronRight />
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {data && data.calendarStatus !== "ok" && (
-        <div className="flex flex-wrap items-center gap-2 border-b bg-surface px-4 py-2 text-xs text-muted-foreground">
-          <CalendarX2 className="size-3.5" />
-          <span>{data.calendarMessage ?? "Google Calendar is unavailable."} Showing tasks only.</span>
-          {data.calendarStatus === "needs-login" && (
-            <Link href="/settings" className="ml-auto text-primary hover:underline">
-              Re-connect
-            </Link>
-          )}
-        </div>
-      )}
+        {data && data.calendarStatus !== "ok" && (
+          <div className="flex flex-wrap items-center gap-2 border-b bg-surface px-4 py-2 text-xs text-muted-foreground">
+            <CalendarX2 className="size-3.5" />
+            <span>{data.calendarMessage ?? "Google Calendar is unavailable."} Showing tasks only.</span>
+            {data.calendarStatus === "needs-login" && (
+              <Link href="/settings" className="ml-auto text-primary hover:underline">
+                Re-connect
+              </Link>
+            )}
+          </div>
+        )}
 
-      {!data ? (
-        error ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">Couldn&apos;t load the calendar. It will retry automatically.</p>
+        {!data ? (
+          error ? (
+            <p className="px-4 py-6 text-sm text-muted-foreground">Couldn&apos;t load the calendar. It will retry automatically.</p>
+          ) : (
+            <Skeleton className="m-4 h-[min(68vh,720px)] rounded-lg" />
+          )
         ) : (
-          <Skeleton className="m-4 h-[min(68vh,720px)] rounded-lg" />
-        )
-      ) : (
-        <div className={cn(isLoading && "opacity-60 transition-opacity")}>
-          {/* Wide (by available width, so it adapts when the assistant is open): week time grid. */}
-          <div className="hidden @4xl:block">
-            <div className={cn(COLS_7, "border-b")}>
-              <div />
-              {data.days.map((d) => (
-                <DayHeader key={d.date} date={d.date} today={data.today} />
-              ))}
+          <div className={cn(isLoading && "opacity-60 transition-opacity")}>
+            {/* Wide (by available width, so it adapts when the assistant is open): week time grid. */}
+            <div className="hidden @4xl:block">
+              <div className={cn(COLS_7, "border-b")}>
+                <div />
+                {data.days.map((d) => (
+                  <DayHeader key={d.date} date={d.date} today={data.today} />
+                ))}
+              </div>
+              <AllDayRow days={data.days} today={data.today} tz={data.tz} onComplete={complete} cols={COLS_7} />
+              <div ref={startScroll} className={SCROLL}>
+                <TimeGrid days={data.days} agenda={data} onComplete={complete} cols={COLS_7} />
+              </div>
             </div>
-            <AllDayRow days={data.days} today={data.today} tz={data.tz} onComplete={complete} cols={COLS_7} />
-            <div ref={startScroll} className={SCROLL}>
-              <TimeGrid days={data.days} agenda={data} onComplete={complete} cols={COLS_7} />
-            </div>
-          </div>
 
-          {/* Narrow: day picker + one day's time grid. */}
-          <div className="@4xl:hidden">
-            <div className="grid grid-cols-7 gap-1 border-b px-2 py-2">
-              {data.days.map((d) => {
-                const active = d.date === selectedDay;
-                const isToday = d.date === data.today;
-                return (
-                  <button
-                    key={d.date}
-                    onClick={() => setSelected(d.date)}
-                    aria-pressed={active}
-                    className={cn(
-                      "flex flex-col items-center rounded-lg py-1.5 text-xs transition-colors",
-                      active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60",
-                    )}
-                  >
-                    <span>{fmt(d.date, { weekday: "short" })}</span>
-                    <span className={cn("mt-0.5 flex size-6 items-center justify-center rounded-full text-sm", isToday && "bg-primary text-primary-foreground")}>
-                      {Number(d.date.slice(8))}
-                    </span>
-                    <span className={cn("mt-0.5 size-1 rounded-full", d.items.length ? "bg-muted-foreground/60" : "bg-transparent")} />
-                  </button>
-                );
-              })}
-            </div>
-            {data.days
-              .filter((d) => d.date === selectedDay)
-              .map((d) => (
-                <div key={d.date}>
-                  <AllDayRow days={[d]} today={data.today} tz={data.tz} onComplete={complete} cols={COLS_1} />
-                  <div ref={startScroll} data-day={d.date} className={SCROLL}>
-                    <TimeGrid days={[d]} agenda={data} onComplete={complete} cols={COLS_1} />
+            {/* Narrow: day picker + one day's time grid. */}
+            <div className="@4xl:hidden">
+              <div className="grid grid-cols-7 gap-1 border-b px-2 py-2">
+                {data.days.map((d) => {
+                  const active = d.date === selectedDay;
+                  const isToday = d.date === data.today;
+                  return (
+                    <button
+                      key={d.date}
+                      onClick={() => setSelected(d.date)}
+                      aria-pressed={active}
+                      className={cn(
+                        "flex flex-col items-center rounded-lg py-1.5 text-xs transition-colors",
+                        active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60",
+                      )}
+                    >
+                      <span>{fmt(d.date, { weekday: "short" })}</span>
+                      <span className={cn("mt-0.5 flex size-6 items-center justify-center rounded-full text-sm", isToday && "bg-primary text-primary-foreground")}>
+                        {Number(d.date.slice(8))}
+                      </span>
+                      <span className={cn("mt-0.5 size-1 rounded-full", d.items.length ? "bg-muted-foreground/60" : "bg-transparent")} />
+                    </button>
+                  );
+                })}
+              </div>
+              {data.days
+                .filter((d) => d.date === selectedDay)
+                .map((d) => (
+                  <div key={d.date}>
+                    <AllDayRow days={[d]} today={data.today} tz={data.tz} onComplete={complete} cols={COLS_1} />
+                    <div ref={startScroll} data-day={d.date} className={SCROLL}>
+                      <TimeGrid days={[d]} agenda={data} onComplete={complete} cols={COLS_1} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+            </div>
           </div>
-        </div>
-      )}
-    </section>
+        )}
+      </section>
+    </div>
   );
 }
 

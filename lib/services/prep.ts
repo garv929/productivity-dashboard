@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   applications,
@@ -27,9 +27,14 @@ export const STORY_LABEL: Record<StoryKind, string> = {
 
 export type InterviewWithApp = Interview & { companyName: string | null; role: string | null };
 
-export async function listInterviews(userId: string, opts: { upcomingOnly?: boolean; now?: Date } = {}): Promise<InterviewWithApp[]> {
+export async function listInterviews(
+  userId: string,
+  opts: { upcomingOnly?: boolean; now?: Date; from?: Date; to?: Date } = {},
+): Promise<InterviewWithApp[]> {
   const where = [eq(interviews.userId, userId)];
   if (opts.upcomingOnly) where.push(gte(interviews.scheduledAt, new Date((opts.now ?? new Date()).getTime() - 2 * 3600_000)));
+  if (opts.from) where.push(gte(interviews.scheduledAt, opts.from));
+  if (opts.to) where.push(lt(interviews.scheduledAt, opts.to));
   const rows = await db
     .select({ interview: interviews, companyName: applications.companyName, role: applications.role })
     .from(interviews)

@@ -174,7 +174,8 @@ function Thread({ sessionId, initialMessages, groups }: { sessionId: string; ini
     messages: initialMessages,
     transport,
     onFinish: () => {
-      void mutate((key) => typeof key === "string" && (key.startsWith("/api/actions/") || key === "/api/chat/sessions"));
+      // Refresh page data too (calendar, interview timeline…): a typed "yes" may have changed it.
+      void mutate((key) => typeof key === "string" && (!key.startsWith("/api/chat") || key === "/api/chat/sessions"));
       router.refresh();
     },
   });
