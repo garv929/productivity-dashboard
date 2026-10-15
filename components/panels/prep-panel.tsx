@@ -297,8 +297,14 @@ function InterviewDialog({
       trigger={trigger}
       title={iv ? "Edit interview" : "Add interview"}
       onSubmit={async (f) => {
-        const when = str(f, "scheduledAt");
-        if (!when) return false;
+        // Both are required inputs; read as local time in the browser.
+        const date = str(f, "date");
+        const time = str(f, "time");
+        if (!date || !time) {
+          toast.error("Add both a date and a time.");
+          return false;
+        }
+        const when = `${date}T${time}`;
         try {
           unwrap(
             await saveInterviewAction({
@@ -324,9 +330,10 @@ function InterviewDialog({
         </NativeSelect>
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Date & time"><Input name="scheduledAt" type="datetime-local" required defaultValue={toDatetimeLocal(iv?.scheduledAt)} /></Field>
-        <Field label="Stage"><Input name="stage" defaultValue={iv?.stage ?? ""} placeholder="Recruiter screen" /></Field>
+        <Field label="Date *"><Input name="date" type="date" required defaultValue={toDatetimeLocal(iv?.scheduledAt).slice(0, 10)} /></Field>
+        <Field label="Time *"><Input name="time" type="time" required defaultValue={toDatetimeLocal(iv?.scheduledAt).slice(11, 16)} /></Field>
       </div>
+      <Field label="Stage"><Input name="stage" defaultValue={iv?.stage ?? ""} placeholder="Recruiter screen" /></Field>
       <Field label="Interviewer"><Input name="interviewer" defaultValue={iv?.interviewer ?? ""} /></Field>
       <Field label="Prep notes"><Textarea name="prepNotes" rows={4} defaultValue={iv?.prepNotes ?? ""} /></Field>
     </FormDialog>
