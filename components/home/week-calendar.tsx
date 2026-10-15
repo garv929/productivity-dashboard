@@ -83,7 +83,7 @@ export function WeekCalendar() {
 
   return (
     <div className="space-y-3">
-      {data && <InterviewTimeline agenda={data} cols={COLS_7} />}
+      {data && <InterviewTimeline calendarWeek={data.weekStart} cols={COLS_7} />}
       <section aria-labelledby="calendar-heading" className="overflow-hidden rounded-xl border bg-card">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
           <h2 id="calendar-heading" className="font-sans text-sm font-medium">
