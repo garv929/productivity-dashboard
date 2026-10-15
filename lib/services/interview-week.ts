@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { listActiveGroups } from "@/lib/domain/groups";
 import { localDate, weekRangeFromStart, type LocalDate } from "@/lib/domain/time";
 import { listInterviews } from "./prep";
+import { listNetworkingCalls } from "./networking-calls";
 
 /** An interview from Interview Prep, placed on its local day for the homepage timeline. */
 export type AgendaInterview = {
@@ -15,6 +16,16 @@ export type AgendaInterview = {
   stage: string | null;
 };
 
+/** A scheduled networking call, placed on its local day for the homepage timeline. */
+export type AgendaCall = {
+  id: string;
+  date: LocalDate;
+  /** ISO instant. */
+  at: string;
+  personName: string;
+  company: string | null;
+};
+
 export type InterviewWeek = {
   generatedAt: string;
   tz: string;
@@ -24,17 +35,26 @@ export type InterviewWeek = {
   days: LocalDate[];
   /** That week's interviews, soonest first. */
   interviews: AgendaInterview[];
+  /** That week's networking calls, soonest first. */
+  calls: AgendaCall[];
   /** The Interview Prep page (link + colour for the timeline), if that group exists. */
   prep: { slug: string; color: string } | null;
+  /** The Networking page (link + colour for calls), if that group exists. */
+  networking: { slug: string; color: string } | null;
 };
 
-/** Monday–Sunday interviews for the homepage timeline, independent of the calendar's week. */
+/** Monday–Sunday interviews and networking calls for the homepage timeline, independent of the calendar's week. */
 export async function getInterviewWeek(userId: string, weekOf?: LocalDate, now = new Date()): Promise<InterviewWeek> {
   const tz = env.APP_TIMEZONE;
   const today = localDate(now, tz);
   const week = weekRangeFromStart(weekOf ?? today, tz);
-  const [groups, rows] = await Promise.all([listActiveGroups(userId), listInterviews(userId, { from: week.start, to: week.end })]);
+  const [groups, rows, callRows] = await Promise.all([
+    listActiveGroups(userId),
+    listInterviews(userId, { from: week.start, to: week.end }),
+    listNetworkingCalls(userId, { from: week.start, to: week.end }),
+  ]);
   const prep = groups.find((g) => g.kind === "prep");
+  const networking = groups.find((g) => g.kind === "people");
   return {
     generatedAt: now.toISOString(),
     tz,
@@ -50,6 +70,14 @@ export async function getInterviewWeek(userId: string, weekOf?: LocalDate, now =
       role: i.role,
       stage: i.stage,
     })),
+    calls: callRows.map((c) => ({
+      id: c.id,
+      date: localDate(c.scheduledAt, tz),
+      at: c.scheduledAt.toISOString(),
+      personName: c.personName,
+      company: c.company,
+    })),
     prep: prep ? { slug: prep.slug, color: prep.color } : null,
+    networking: networking ? { slug: networking.slug, color: networking.color } : null,
   };
 }

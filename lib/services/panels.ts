@@ -5,6 +5,7 @@ import { weekRange } from "@/lib/domain/time";
 import { listActivity } from "./activity";
 import { listApplications } from "./applications";
 import { listContacts } from "./contacts";
+import { listNetworkingCalls } from "./networking-calls";
 import { listCompanies } from "./companies";
 import { listInterviews, listQuestions, listStories } from "./prep";
 import { listIncomeOptions } from "./income";
@@ -31,10 +32,15 @@ export async function loadPanel(userId: string, kind: GroupKind, now = new Date(
       } as const;
     }
     case "people": {
-      const [contacts, w] = await Promise.all([listContacts(userId, { now }), weekCounts(userId, now)]);
+      const [contacts, calls, w] = await Promise.all([
+        listContacts(userId, { now }),
+        listNetworkingCalls(userId, { upcomingOnly: true, now }),
+        weekCounts(userId, now),
+      ]);
       return {
         kind,
         contacts,
+        calls,
         weekly: {
           outreach: { actual: w.sumOf("outreach"), min: w.targets.outreach.min, max: w.targets.outreach.max },
           followUps: { actual: w.sumOf("follow_up"), min: w.targets.follow_ups.min, max: w.targets.follow_ups.max },

@@ -27,6 +27,7 @@ import { tierLabel } from "@/lib/domain/company-tier";
 import type { ImportRow } from "@/lib/domain/company-import";
 import { applyImport, enrichCompanies } from "@/lib/services/company-import";
 import { getInterview, resolveInterviewApplication, restoreInterview, upsertInterview } from "@/lib/services/prep";
+import { getNetworkingCall, restoreNetworkingCall, upsertNetworkingCall } from "@/lib/services/networking-calls";
 import { logSideIncomeHours, upsertIncomeOption } from "@/lib/services/income";
 import { listFocusItems, setFocusStatus } from "@/lib/services/focus";
 import { getWeeklyReview, saveWeeklyReview, type ReviewInput } from "@/lib/services/targets";
@@ -90,6 +91,7 @@ export type StepParamMap = {
     notes?: string | null;
   };
   log_touch: { contactId: string; type: TouchType; nextCheckInAt?: string | null; note?: string };
+  upsert_networking_call: { id?: string; personName?: string; company?: string | null; scheduledAt?: string; notes?: string | null };
   /** The application is resolved when the step runs, so one created earlier in the same action is found. */
   upsert_interview: {
     id?: string;
@@ -234,6 +236,11 @@ export function createStepRunner(ctx: ServiceCtx) {
           undo.push({ kind: "restore_company", snapshot: c.previous, createdId: c.previous ? undefined : c.company.id });
         }
         return { undo };
+      }
+      case "upsert_networking_call": {
+        const { scheduledAt, ...rest } = step.params as StepParamMap["upsert_networking_call"];
+        const res = await upsertNetworkingCall(ctx, { ...rest, ...(scheduledAt && { scheduledAt: new Date(scheduledAt) }) });
+        return { undo: [{ kind: "restore_networking_call", snapshot: res.previous, createdId: res.previous ? undefined : res.call.id }] };
       }
       case "upsert_interview": {
         const { companyName, role, applicationId, scheduledAt, ...rest } = step.params as StepParamMap["upsert_interview"];
@@ -393,6 +400,9 @@ export function createStepRunner(ctx: ServiceCtx) {
         } else if (tool === "upsert_application" && p.id) {
           const a = await getApplication(ctx.userId, p.id as string);
           if (step.fingerprint && step.fingerprint !== a.stage) return `${a.companyName} – ${a.role} moved to “${a.stage}” in the meantime.`;
+        } else if (tool === "upsert_networking_call" && p.id) {
+          const call = await getNetworkingCall(ctx.userId, p.id as string);
+          if (step.fingerprint && step.fingerprint !== call.scheduledAt.toISOString()) return `The call with ${call.personName} was rescheduled in the meantime.`;
         } else if (tool === "upsert_interview" && p.id) {
           const iv = await getInterview(ctx.userId, p.id as string);
           if (step.fingerprint && step.fingerprint !== iv.scheduledAt.toISOString()) return "That interview was rescheduled in the meantime.";
@@ -441,6 +451,8 @@ export function createStepRunner(ctx: ServiceCtx) {
         return removeActivity(ctx.userId, op.activityId as string);
       case "restore_application":
         return restoreApplication(ctx.userId, op.snapshot ? revive(op.snapshot as never) : null, op.createdId as string | undefined);
+      case "restore_networking_call":
+        return restoreNetworkingCall(ctx.userId, op.snapshot ? revive(op.snapshot as never) : null, op.createdId as string | undefined);
       case "restore_interview":
         return restoreInterview(ctx.userId, op.snapshot ? revive(op.snapshot as never) : null, op.createdId as string | undefined);
       case "restore_contact":

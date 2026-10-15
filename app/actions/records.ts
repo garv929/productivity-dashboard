@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { upsertApplication } from "@/lib/services/applications";
 import { logTouch, upsertContact } from "@/lib/services/contacts";
+import { deleteNetworkingCall, upsertNetworkingCall } from "@/lib/services/networking-calls";
 import { upsertCompany } from "@/lib/services/companies";
 import { enrichCompanies } from "@/lib/services/company-import";
 import { addQuestion, deleteInterview, logPrepSession, saveStory, setPracticed, upsertInterview } from "@/lib/services/prep";
@@ -88,6 +89,37 @@ export async function logTouchAction(input: { contactId: string; type: "outreach
       })
       .parse(input);
     await logTouch(ctx, data);
+    refresh();
+    return null;
+  });
+}
+
+/* -------------------------------------------------------- Networking calls */
+
+const networkingCallSchema = z.object({
+  id: uuid.optional(),
+  personName: z.string().trim().min(1, "Say who the call is with.").max(120).optional(),
+  company: optText.optional(),
+  scheduledAt: z
+    .string()
+    .min(1)
+    .transform((v) => new Date(v))
+    .refine((d) => !Number.isNaN(d.getTime()), "Invalid date")
+    .optional(),
+  notes: optText.optional(),
+});
+
+export async function saveNetworkingCallAction(input: z.input<typeof networkingCallSchema>) {
+  return run(async (ctx) => {
+    const res = await upsertNetworkingCall(ctx, networkingCallSchema.parse(input));
+    refresh();
+    return { id: res.call.id };
+  });
+}
+
+export async function deleteNetworkingCallAction(id: string) {
+  return run(async (ctx) => {
+    await deleteNetworkingCall(ctx, uuid.parse(id));
     refresh();
     return null;
   });

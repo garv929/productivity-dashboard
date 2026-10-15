@@ -3,14 +3,19 @@
 import type { PanelData } from "@/lib/services/panels";
 import { PipelinePanel } from "./pipeline-panel";
 import { PeoplePanel } from "./people-panel";
+import { UpcomingCalls } from "./networking-calls";
 import { PrepPanel, UpcomingInterviews } from "./prep-panel";
 import { ResearchPanel } from "./research-panel";
 import { OptionsPanel } from "./options-panel";
 import { FocusPanel } from "./focus-panel";
 
-/** The part of a group's panel shown at the top of its page, if any (Interview Prep: upcoming interviews). */
+/**
+ * The part of a group's panel shown at the top of its page: upcoming interviews on
+ * Interview Prep, upcoming networking calls on Networking.
+ */
 export function ContextPanelTop({ data, readOnly, groupColor }: { data: PanelData; readOnly: boolean; groupColor: string }) {
   if (data.kind === "prep") return <UpcomingInterviews data={data} readOnly={readOnly} color={groupColor} />;
+  if (data.kind === "people") return <UpcomingCalls data={data} readOnly={readOnly} />;
   return null;
 }
 

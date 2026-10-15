@@ -43,6 +43,13 @@
       "when": 1791228194733,
       "tag": "0005_remove_tailoring_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792101661283,
+      "tag": "0006_networking_calls",
+      "breakpoints": true
     }
   ]
 }
