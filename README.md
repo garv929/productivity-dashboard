@@ -16,7 +16,7 @@ Sign-in is Google via Auth.js, restricted to a single allowlisted email.
   | Kind | Panel |
   |---|---|
   | `pipeline` | Applications board/table with stages and each company's tier badge. A tier is required to add an application; it's stored on the company (shared by all its applications), and a company that isn't in Company Research yet is added there |
-  | `people` | Contacts, follow-up due dates, touch logging |
+  | `people` | Upcoming networking calls (who, company, date and time; shown on the homepage timeline), contacts, follow-up due dates, touch logging |
   | `prep` | Interviews, prep sessions, question bank, STAR stories |
   | `research` | Companies grouped by tier (Tier 1 = most attractive, Tier 2, Tier 3, Unrated) with tier filters and a one-click tier picker; name autocomplete fills in the website, logo and a homepage description; bulk import from any spreadsheet or document via the assistant (CSV template on the page) and "Fill missing details"; "Ready to apply" creates a linked task in Applications |
   | `options` | Side-income options, hours logged vs. weekly cap |

@@ -252,6 +252,25 @@ export const interviews = pgTable("interviews", {
   createdAt: createdAt(),
 });
 
+/** Scheduled networking calls / coffee chats (Networking page and the homepage timeline). */
+export const networkingCalls = pgTable(
+  "networking_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Linked when the person matches one of the contacts. */
+    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    personName: text("person_name").notNull(),
+    company: text("company"),
+    scheduledAt: tz("scheduled_at").notNull(),
+    notes: text("notes"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("networking_calls_user_time_idx").on(t.userId, t.scheduledAt)],
+);
+
 export const prepQuestions = pgTable("prep_questions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id")
@@ -428,6 +447,7 @@ export type ApplicationStage = (typeof applicationStage.enumValues)[number];
 export type Contact = typeof contacts.$inferSelect;
 export type ContactRelationship = (typeof contactRelationship.enumValues)[number];
 export type Company = typeof companies.$inferSelect;
+export type NetworkingCall = typeof networkingCalls.$inferSelect;
 export type CompanyStatus = (typeof companyStatus.enumValues)[number];
 export type CompanyTier = (typeof companyTier.enumValues)[number];
 export type Interview = typeof interviews.$inferSelect;

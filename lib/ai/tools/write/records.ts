@@ -13,6 +13,7 @@ import { FOCUS_ACTIVE_LIMIT, listFocusItems } from "@/lib/services/focus";
 import { getGroupByKind } from "@/lib/domain/groups";
 import { dayRange, formatLocal, localDateTimeToInstant, mondayOf, weekRange } from "@/lib/domain/time";
 import { getInterview, resolveInterviewApplication } from "@/lib/services/prep";
+import { getNetworkingCall } from "@/lib/services/networking-calls";
 import { makeStep } from "@/lib/ai/executor";
 import { fmtDay, hhmm, isoDate, serviceCtx, type ToolCtx } from "../context";
 import { proposeSteps } from "./propose";
@@ -261,6 +262,36 @@ export function recordWriteTools(tc: ToolCtx) {
             prepNotes: input.prepNotes,
           };
           return [makeStep("upsert_interview", summary, params, prev ? prev.scheduledAt.toISOString() : null)];
+        }),
+    }),
+
+    upsert_networking_call: tool({
+      description:
+        "PROPOSE adding a scheduled networking call / coffee chat (needs who it's with, date and time) or updating one by id (requires confirmation). Use this, not create_tasks, for any call or chat with a person at a set time. It links to the matching contact automatically.",
+      inputSchema: z.object({
+        id: z.uuid().optional().describe("Existing call to update (from get_networking_calls)"),
+        personName: z.string().trim().min(1).max(120).optional(),
+        company: z.string().trim().max(120).optional(),
+        date: z.string().regex(isoDate).optional().describe("YYYY-MM-DD, local"),
+        time: z.string().regex(hhmm).optional().describe("HH:mm 24h, local"),
+        notes: z.string().max(4000).optional(),
+      }),
+      execute: (input) =>
+        proposeSteps(tc, async () => {
+          const prev = input.id ? await getNetworkingCall(tc.userId, input.id) : null;
+          if (!prev && !input.personName) return { error: "Say who the call is with. Ask the user if they didn't." };
+          if (!prev && (!input.date || !input.time)) return { error: "A new networking call needs a date and a time. Ask the user for whichever is missing; never guess." };
+          if (prev && Boolean(input.date) !== Boolean(input.time)) return { error: "To move a call, give both date and time." };
+          const when = input.date && input.time ? localDateTimeToInstant(input.date, input.time, tc.tz) : null;
+          const who = input.personName ?? prev!.personName;
+          const company = input.company ?? prev?.company;
+          const label = `${who}${company ? ` (${company})` : ""}`;
+          const at = when ? formatLocal(when, tc.tz, "EEE MMM d, h:mm a") : null;
+          const summary = prev
+            ? `Update networking call with ${b(label)}${at ? `: move to ${b(at)}` : ""}`
+            : `Add networking call with ${b(label)} on ${b(at!)}`;
+          const params = { id: input.id, personName: input.personName, company: input.company, scheduledAt: when?.toISOString(), notes: input.notes };
+          return [makeStep("upsert_networking_call", summary, params, prev ? prev.scheduledAt.toISOString() : null)];
         }),
     }),
 

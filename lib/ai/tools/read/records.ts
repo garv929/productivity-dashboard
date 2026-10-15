@@ -5,6 +5,7 @@ import { applicationStage, companyStatus, companyTier, incomeStatus } from "@/li
 import { listApplications } from "@/lib/services/applications";
 import { listContacts } from "@/lib/services/contacts";
 import { listCompanies } from "@/lib/services/companies";
+import { listNetworkingCalls } from "@/lib/services/networking-calls";
 import { tierForApplication } from "@/lib/domain/company-tier";
 import { describeCompany, suggestCompanies } from "@/lib/services/company-lookup";
 import { listInterviews, listQuestions, listStories } from "@/lib/services/prep";
@@ -12,7 +13,7 @@ import { listIncomeOptions, sideIncomeHoursThisWeek } from "@/lib/services/incom
 import { FOCUS_ACTIVE_LIMIT, listFocusItems } from "@/lib/services/focus";
 import { getScorecard } from "@/lib/services/dashboard";
 import { biggestGap } from "@/lib/domain/scorecard";
-import { dayRange, localDate, mondayOf } from "@/lib/domain/time";
+import { dayRange, formatLocal, localDate, mondayOf } from "@/lib/domain/time";
 import { fail, fmtInstant, isoDate, serviceCtx, untrusted, type ToolCtx } from "../context";
 
 const day = (d: Date | null | undefined, tz: string) => (d ? localDate(d, tz) : null);
@@ -78,6 +79,28 @@ export function recordReadTools(tc: ToolCtx) {
               nextCheckIn: day(c.nextCheckInAt, tz),
               checkInOverdue: Boolean(c.nextCheckInAt && c.nextCheckInAt.getTime() < tc.now.getTime()),
               notes: c.notes?.slice(-400) ?? null,
+            })),
+          );
+        } catch (err) {
+          return fail(err);
+        }
+      },
+    }),
+
+    get_networking_calls: tool({
+      description: "Upcoming scheduled networking calls / coffee chats (from the Networking page), soonest first, with ids for rescheduling.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const rows = await listNetworkingCalls(tc.userId, { upcomingOnly: true, now: tc.now });
+          return untrusted(
+            rows.map((c) => ({
+              id: c.id,
+              with: c.personName,
+              company: c.company,
+              linkedToContact: Boolean(c.contactId),
+              when: formatLocal(c.scheduledAt, tz, "yyyy-MM-dd HH:mm"),
+              notes: c.notes?.slice(0, 300) ?? null,
             })),
           );
         } catch (err) {

@@ -8,6 +8,9 @@ import { ErrorState } from "@/components/states";
 
 export const dynamic = "force-dynamic";
 
+/** Group kinds whose page starts with part of their panel (see ContextPanelTop). */
+const HAS_TOP_PANEL: ReadonlySet<string> = new Set(["prep", "people"]);
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   return { title: slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) };
@@ -27,7 +30,7 @@ export default async function GroupPage({ params }: { params: Promise<{ slug: st
   return (
     <GroupView
       initial={data}
-      top={panel.kind === "prep" ? <ContextPanelTop data={panel} readOnly={data.group.archived} groupColor={data.group.color} /> : undefined}
+      top={HAS_TOP_PANEL.has(panel.kind) ? <ContextPanelTop data={panel} readOnly={data.group.archived} groupColor={data.group.color} /> : undefined}
     >
       <ContextPanel data={panel} readOnly={data.group.archived} groupColor={data.group.color} />
     </GroupView>
