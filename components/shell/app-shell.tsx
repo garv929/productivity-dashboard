@@ -20,6 +20,7 @@ import { GroupDot } from "@/components/group-icon";
 import { AssistantProvider, useAssistant } from "@/components/chat/assistant-context";
 import { AssistantPanel } from "@/components/chat/assistant-panel";
 import { KeyboardShortcuts } from "./keyboard-shortcuts";
+import { ReloadToHome } from "./reload-to-home";
 import { fetcher, FetchError } from "@/lib/client/fetcher";
 import { signOutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ export function AppShell({ email, groups, children }: { email: string; groups: N
         </div>
         <AssistantLauncher />
         <KeyboardShortcuts groups={groups} />
+        <ReloadToHome />
       </AssistantProvider>
     </SWRConfig>
   );
