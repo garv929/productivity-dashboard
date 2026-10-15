@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, LayoutGrid, Pencil, Plus, Rows3 } from "lucide-react";
+import { BellRing, ExternalLink, LayoutGrid, Pencil, Plus, Rows3 } from "lucide-react";
 import type { PanelData } from "@/lib/services/panels";
 import type { Application, ApplicationStage } from "@/lib/db/schema";
 import { saveApplicationAction } from "@/app/actions/records";
@@ -21,14 +21,6 @@ import { compareApplications } from "@/lib/domain/application-order";
 type Data = Extract<PanelData, { kind: "pipeline" }>;
 
 
-/** "Last updated: Oct 5 · 2d ago" */
-function LastUpdated({ at, className }: { at: Date | string; className?: string }) {
-  return (
-    <p className={cn("text-[11px] text-muted-foreground/80", className)} title={new Date(at).toLocaleString("en-US")}>
-      Last updated: {formatDate(at)} · {relativeDays(at)}
-    </p>
-  );
-}
 
 const STAGES: { value: ApplicationStage; label: string }[] = [
   { value: "researching", label: "Researching" },
@@ -156,48 +148,84 @@ function ApplicationCard({
   onStage: (a: Application, s: ApplicationStage) => void;
   companies: Data["companies"];
 }) {
-  const [now] = useState(() => Date.now());
-  const followUpDue = a.nextFollowUpAt && new Date(a.nextFollowUpAt).getTime() < now;
   const tier = tierForApplication(a, companies);
   return (
     <div className="rounded-lg border border-l-[3px] bg-card p-2.5 text-sm" style={tier ? { borderLeftColor: TIER_COLOR[tier] } : undefined}>
-      <div className="flex items-start gap-1">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            {tier && <TierDot tier={tier} />}
-            <p className="truncate font-medium">{a.companyName}</p>
-          </div>
-          <p className="truncate text-xs text-muted-foreground">{a.role}</p>
+      {/* Who: company and role on the left, follow-up pinned to the top-right corner. */}
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          {tier && <TierDot tier={tier} />}
+          <p className="truncate font-semibold leading-tight">{a.companyName}</p>
         </div>
-        {a.url && (
-          <a href={a.url} target="_blank" rel="noreferrer" className="p-1 text-muted-foreground hover:text-foreground" aria-label="Open posting">
-            <ExternalLink className="size-3.5" />
-          </a>
-        )}
-        {!readOnly && (
-          <ApplicationDialog
-            application={a}
-            companies={companies}
-            trigger={
-              <button className="p-1 text-muted-foreground hover:text-foreground" aria-label="Edit application">
-                <Pencil className="size-3.5" />
-              </button>
-            }
-          />
-        )}
+        {a.nextFollowUpAt && <FollowUpPill at={a.nextFollowUpAt} />}
       </div>
-      <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-        {a.appliedAt && <p>Applied {formatDate(a.appliedAt)} · {relativeDays(a.appliedAt)}</p>}
-        {a.nextFollowUpAt && <p className={cn(followUpDue && "text-destructive")}>Follow up {formatDate(a.nextFollowUpAt)}</p>}
-        {a.notes && <p className="line-clamp-2">{a.notes}</p>}
+      <p className="mt-0.5 truncate text-xs text-muted-foreground" title={a.role}>{a.role}</p>
+
+      {/* What's happening: notes in their own quiet box. */}
+      {a.notes && (
+        <p className="mt-2 line-clamp-3 rounded-md bg-muted/60 px-2 py-1.5 text-xs leading-snug whitespace-pre-line" title={a.notes}>
+          {a.notes}
+        </p>
+      )}
+
+      {/* When: small, dim metadata split left/right. */}
+      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground/80">
+        <span title={a.appliedAt ? new Date(a.appliedAt).toLocaleString("en-US") : undefined}>
+          {a.appliedAt ? `Applied ${formatDate(a.appliedAt)}` : "Not applied yet"}
+        </span>
+        <span title={`Last updated ${new Date(a.updatedAt).toLocaleString("en-US")}`}>Updated {relativeDays(a.updatedAt)}</span>
       </div>
-      <LastUpdated at={a.updatedAt} className="mt-1.5" />
-      {!readOnly && (
-        <NativeSelect value={a.stage} onChange={(e) => onStage(a, e.target.value as ApplicationStage)} className="mt-2 h-7 text-xs" aria-label="Stage">
-          {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </NativeSelect>
+
+      {/* Actions. */}
+      {(!readOnly || a.url) && (
+        <div className="mt-2 flex items-center gap-1 border-t pt-2">
+          {!readOnly && (
+            <NativeSelect value={a.stage} onChange={(e) => onStage(a, e.target.value as ApplicationStage)} className="h-7 flex-1 text-xs" aria-label="Stage">
+              {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </NativeSelect>
+          )}
+          {a.url && (
+            <a href={a.url} target="_blank" rel="noreferrer" className={cn("rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground", readOnly && "ml-auto")} aria-label="Open posting" title="Open posting">
+              <ExternalLink className="size-3.5" />
+            </a>
+          )}
+          {!readOnly && (
+            <ApplicationDialog
+              application={a}
+              companies={companies}
+              trigger={
+                <button className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Edit application" title="Edit">
+                  <Pencil className="size-3.5" />
+                </button>
+              }
+            />
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+/** Follow-up date as a small pill: red when overdue, amber for today/tomorrow, neutral otherwise. */
+function FollowUpPill({ at }: { at: Date | string }) {
+  const [today] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  });
+  const d = new Date(at);
+  const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - today) / 86_400_000);
+  const label = days < 0 ? `Overdue · ${formatDate(at)}` : days === 0 ? "Today" : days === 1 ? "Tomorrow" : formatDate(at);
+  const tone =
+    days < 0 ? "bg-destructive/12 text-destructive" : days <= 1 ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground";
+  return (
+    <span
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", tone)}
+      title={`Follow up ${formatDate(at, { weekday: "short", month: "short", day: "numeric" })} (${relativeDays(at)})`}
+    >
+      <BellRing className="size-3" aria-hidden />
+      <span className="sr-only">Follow up </span>
+      {label}
+    </span>
   );
 }
 
