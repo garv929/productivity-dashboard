@@ -1,70 +1,123 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Briefcase } from "lucide-react";
-import type { AgendaInterview, WeekAgenda } from "@/lib/services/agenda";
+import useSWR from "swr";
+import { Briefcase, ChevronLeft, ChevronRight } from "lucide-react";
+import type { AgendaInterview, InterviewWeek } from "@/lib/services/interview-week";
+import { addDays, mondayOf } from "@/lib/domain/time";
 import { formatTime } from "@/lib/client/format";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const fmtDay = (d: string, opts: Intl.DateTimeFormatOptions) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 const FALLBACK_COLOR = "var(--primary)";
 
+function rangeLabel(start: string, end: string) {
+  const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+  return `${fmtDay(start, { month: "short", day: "numeric" })} – ${fmtDay(end, sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" })}`;
+}
+
 /**
- * A slim strip above the week calendar with only this week's interviews (from Interview Prep).
- * On wide screens it uses the calendar's own column template so each day sits over its column.
+ * Interviews (from Interview Prep) for one week, above the week calendar. It starts on the
+ * calendar's week and follows it until you use its own arrows; then it's independent. The
+ * choice isn't stored, so reloading or leaving Home snaps it back to the calendar's week.
+ * On wide screens it uses the calendar's column template so each day sits over its column.
  */
-export function InterviewTimeline({ agenda, cols }: { agenda: WeekAgenda; cols: string }) {
-  const color = agenda.prep?.color ?? FALLBACK_COLOR;
-  const href = agenda.prep ? `/g/${agenda.prep.slug}` : null;
-  const byDay = new Map(agenda.days.map((d) => [d.date, agenda.interviews.filter((i) => i.date === d.date)]));
-  const count = agenda.interviews.length;
+export function InterviewTimeline({ calendarWeek, cols }: { calendarWeek: string; cols: string }) {
+  const [ownWeek, setOwnWeek] = useState<string | null>(null);
+  const week = ownWeek ?? calendarWeek;
+  const { data, isLoading } = useSWR<InterviewWeek>(`/api/interviews?week=${week}`, { keepPreviousData: true });
+
+  const thisWeek = data ? mondayOf(data.today) : null;
+  const isCurrentWeek = data ? data.weekStart === thisWeek : true;
+  const go = (deltaWeeks: number) => setOwnWeek(addDays(data?.weekStart ?? week, deltaWeeks * 7));
+
+  const color = data?.prep?.color ?? FALLBACK_COLOR;
+  const href = data?.prep ? `/g/${data.prep.slug}` : null;
+  const count = data?.interviews.length ?? 0;
+  const byDay = new Map((data?.days ?? []).map((d) => [d, data!.interviews.filter((i) => i.date === d)]));
 
   return (
     <section aria-labelledby="interviews-heading" className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex items-center gap-2 border-b px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
         <Briefcase className="size-3.5 text-muted-foreground" />
         <h2 id="interviews-heading" className="font-sans text-sm font-medium">
           Interviews
         </h2>
-        <span className="text-xs text-muted-foreground">{count === 0 ? "none this week" : `${count} this week`}</span>
-        {href && (
-          <Link href={href} className="ml-auto text-xs text-primary hover:underline">
-            {count === 0 ? "Add in Interview Prep" : "Interview Prep"}
-          </Link>
-        )}
+        {data && <span className="text-sm text-muted-foreground">{rangeLabel(data.weekStart, data.weekEnd)}</span>}
+        {data && <span className="text-xs text-muted-foreground">· {count === 0 ? "none" : count}</span>}
+        <div className="ml-auto flex items-center gap-1">
+          {href && (
+            <Link href={href} className="mr-2 text-xs text-primary hover:underline">
+              {count === 0 ? "Add in Interview Prep" : "Interview Prep"}
+            </Link>
+          )}
+          <Button variant="ghost" size="icon-sm" onClick={() => go(-1)} disabled={!data} aria-label="Previous week of interviews">
+            <ChevronLeft />
+          </Button>
+          <Button variant="outline" size="sm" className="h-7" onClick={() => thisWeek && setOwnWeek(thisWeek)} disabled={!data || isCurrentWeek}>
+            Today
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => go(1)} disabled={!data} aria-label="Next week of interviews">
+            <ChevronRight />
+          </Button>
+        </div>
       </div>
 
-      {/* Wide: one cell per day, aligned with the calendar's day columns. */}
-      <div className={cn(cols, "hidden min-h-12 @4xl:grid")}>
-        <div />
-        {agenda.days.map((d) => (
-          <ul key={d.date} className={cn("min-w-0 space-y-1 border-l p-1", d.date === agenda.today && "bg-primary/[0.03]")} aria-label={fmtDay(d.date, { weekday: "long", month: "short", day: "numeric" })}>
-            {byDay.get(d.date)!.map((iv) => (
-              <li key={iv.id}>
-                <InterviewChip iv={iv} color={color} href={href} tz={agenda.tz} past={iv.at < agenda.generatedAt} />
-              </li>
-            ))}
-          </ul>
-        ))}
-      </div>
+      {!data ? (
+        <div className="h-[4.5rem]" />
+      ) : (
+        <div className={cn(isLoading && "opacity-60 transition-opacity")}>
+          {/* Wide: its own day headers, then one cell per day, aligned with the calendar's columns. */}
+          <div className="hidden @4xl:block">
+            <div className={cn(cols, "border-b")}>
+              <div />
+              {data.days.map((d) => {
+                const isToday = d === data.today;
+                return (
+                  <div key={d} className="flex items-center justify-center gap-1 border-l py-1 text-xs">
+                    <span className={isToday ? "font-medium text-primary" : "text-muted-foreground"}>{fmtDay(d, { weekday: "short" })}</span>
+                    <span className={cn(isToday ? "font-medium text-primary" : d < data.today ? "text-muted-foreground" : "text-foreground")}>
+                      {Number(d.slice(8))}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className={cn(cols, "min-h-10")}>
+              <div />
+              {data.days.map((d) => (
+                <ul key={d} className={cn("min-w-0 space-y-1 border-l p-1", d === data.today && "bg-primary/[0.03]")} aria-label={fmtDay(d, { weekday: "long", month: "short", day: "numeric" })}>
+                  {byDay.get(d)!.map((iv) => (
+                    <li key={iv.id}>
+                      <InterviewChip iv={iv} color={color} href={href} tz={data.tz} past={iv.at < data.generatedAt} />
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            </div>
+          </div>
 
-      {/* Narrow: the week's interviews as a short list. */}
-      <div className="@4xl:hidden">
-        {count === 0 ? (
-          <p className="px-4 py-2 text-xs text-muted-foreground">No interviews this week.</p>
-        ) : (
-          <ul className="divide-y">
-            {agenda.interviews.map((iv) => (
-              <li key={iv.id} className="flex items-center gap-3 px-4 py-1.5 text-xs">
-                <span className={cn("w-16 shrink-0", iv.date === agenda.today ? "font-medium text-primary" : "text-muted-foreground")}>
-                  {iv.date === agenda.today ? "Today" : `${fmtDay(iv.date, { weekday: "short" })} ${Number(iv.date.slice(8))}`}
-                </span>
-                <InterviewChip iv={iv} color={color} href={href} tz={agenda.tz} past={iv.at < agenda.generatedAt} inline />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          {/* Narrow: the week's interviews as a short list. */}
+          <div className="@4xl:hidden">
+            {count === 0 ? (
+              <p className="px-4 py-2 text-xs text-muted-foreground">No interviews this week.</p>
+            ) : (
+              <ul className="divide-y">
+                {data.interviews.map((iv) => (
+                  <li key={iv.id} className="flex items-center gap-3 px-4 py-1.5 text-xs">
+                    <span className={cn("w-16 shrink-0", iv.date === data.today ? "font-medium text-primary" : "text-muted-foreground")}>
+                      {iv.date === data.today ? "Today" : `${fmtDay(iv.date, { weekday: "short" })} ${Number(iv.date.slice(8))}`}
+                    </span>
+                    <InterviewChip iv={iv} color={color} href={href} tz={data.tz} past={iv.at < data.generatedAt} inline />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
