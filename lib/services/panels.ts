@@ -49,8 +49,10 @@ export async function loadPanel(userId: string, kind: GroupKind, now = new Date(
       } as const;
     }
     case "prep": {
-      const [interviews, questions, stories, apps, w] = await Promise.all([
+      const [interviews, calls, contacts, questions, stories, apps, w] = await Promise.all([
         listInterviews(userId, { upcomingOnly: true, now }),
+        listNetworkingCalls(userId, { upcomingOnly: true, now }),
+        listContacts(userId, { now }),
         listQuestions(userId),
         listStories(userId),
         listApplications(userId),
@@ -59,6 +61,8 @@ export async function loadPanel(userId: string, kind: GroupKind, now = new Date(
       return {
         kind,
         interviews,
+        calls,
+        contacts: contacts.map((c) => ({ id: c.id, name: c.name, company: c.company })),
         questions,
         stories,
         applications: apps.map((a) => ({ id: a.id, label: `${a.companyName} – ${a.role}` })),

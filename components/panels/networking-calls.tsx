@@ -2,7 +2,6 @@
 
 import { toast } from "sonner";
 import { CalendarPlus, Pencil, Trash2 } from "lucide-react";
-import type { PanelData } from "@/lib/services/panels";
 import type { NetworkingCall } from "@/lib/db/schema";
 import { deleteNetworkingCallAction, saveNetworkingCallAction } from "@/app/actions/records";
 import { unwrap } from "@/lib/client/fetcher";
@@ -24,12 +23,15 @@ import {
 import { EmptyState } from "@/components/states";
 import { Field, FormDialog, PanelHeader, str, useAction } from "./shared";
 
-type Data = Extract<PanelData, { kind: "people" }>;
+type Contact = { id: string; name: string; company: string | null };
 
 const WHEN: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
 
-/** Shown first on the Networking page: scheduled calls and coffee chats, soonest first. */
-export function UpcomingCalls({ data, readOnly }: { data: Data; readOnly: boolean }) {
+/**
+ * Scheduled calls and coffee chats, soonest first. Shown at the top of the Networking page
+ * and under upcoming interviews on Interview Prep (same calls on both).
+ */
+export function UpcomingCalls({ data, readOnly }: { data: { calls: NetworkingCall[]; contacts: Contact[] }; readOnly: boolean }) {
   return (
     <div>
       <PanelHeader title="Upcoming networking calls">
@@ -120,7 +122,7 @@ function DeleteCallButton({ call: c }: { call: NetworkingCall }) {
   );
 }
 
-function CallDialog({ trigger, call: c, contacts }: { trigger: React.ReactNode; call?: NetworkingCall; contacts: Data["contacts"] }) {
+function CallDialog({ trigger, call: c, contacts }: { trigger: React.ReactNode; call?: NetworkingCall; contacts: Contact[] }) {
   return (
     <FormDialog
       trigger={trigger}
